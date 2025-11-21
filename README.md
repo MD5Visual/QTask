@@ -1,5 +1,7 @@
 # QTask
 
+<img width="4084" height="1880" alt="image" src="https://github.com/user-attachments/assets/edcf5991-d36a-4631-9eac-5512b5c3c5ee" />
+
 A clean, modern task management application built with Flutter. QTask is designed to be the fastest way to capture and organize your thoughts, keeping your data local and accessible everywhere.
 
 ## ✨ Key Features
