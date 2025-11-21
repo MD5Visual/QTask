@@ -22,7 +22,7 @@ For those who need more control, QTask includes advanced capabilities:
 
 ### Download & Install
 
-You can download the latest version of QTask for your platform from our [GitHub Releases](https://github.com/MD5Visual/task_app/releases) page.
+You can download the latest version of QTask for your platform from our [GitHub Releases](https://github.com/MD5Visual/QTask/releases) page.
 
 #### Windows
 1. Download the `qtask-windows-x64.zip` file.
@@ -58,8 +58,8 @@ If you want to build QTask from source or contribute to the project, follow thes
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/MD5Visual/task_app.git
-cd task_app
+git clone https://github.com/MD5Visual/QTask.git
+cd QTask
 ```
 
 2. Install dependencies:
@@ -109,7 +109,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📮 Support
 
-For issues and feature requests, please use the [GitHub Issues](https://github.com/MD5Visual/task_app/issues) page.
+For issues and feature requests, please use the [GitHub Issues](https://github.com/MD5Visual/QTask/issues) page.
 
 ---
 
