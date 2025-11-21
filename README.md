@@ -10,7 +10,7 @@ A clean, modern task management application built with Flutter. QTask is designe
 - **🖼️ Rich Content**: Store more than just text. Drag and drop images directly into your tasks to keep everything in context.
 - **📱 Cross-Platform**: A consistent, native experience on Windows, macOS, and Android.
 
-## � Power User Features
+## 🚀 Power User Features
 
 For those who need more control, QTask includes advanced capabilities:
 
@@ -18,7 +18,31 @@ For those who need more control, QTask includes advanced capabilities:
 - **Custom Data Storage**: Choose exactly where your data is saved (perfect for syncing via Dropbox/iCloud/Nextcloud).
 - **Import & Export**: Full backup and restore capabilities to keep your data safe.
 
-## 🚀 Getting Started
+## � Getting Started
+
+### Download & Install
+
+You can download the latest version of QTask for your platform from our [GitHub Releases](https://github.com/MD5Visual/task_app/releases) page.
+
+#### Windows
+1. Download the `qtask-windows-x64.zip` file.
+2. Extract the ZIP file to a folder of your choice.
+3. Run `q_task.exe` to start the app.
+
+#### macOS
+1. Download the `qtask-macos-arm64.zip` file.
+2. Extract the ZIP file.
+3. Drag `QTask.app` to your Applications folder.
+4. Open the app.
+
+#### Android
+1. Download the `app-release.apk` file.
+2. Open the file on your Android device to install it.
+3. (Note: You may need to allow installation from unknown sources).
+
+## 💻 Development & Contributing
+
+If you want to build QTask from source or contribute to the project, follow these steps.
 
 ### Prerequisites
 
@@ -52,24 +76,21 @@ flutter run -d macos
 flutter run -d android
 ```
 
-## 🔨 Building
+### Building from Source
 
-### Windows
-
+#### Windows
 ```bash
 flutter build windows --release
 ```
 The executable will be in `build/windows/x64/runner/Release/`
 
-### macOS (Apple Silicon)
-
+#### macOS (Apple Silicon)
 ```bash
 flutter build macos --release
 ```
 The app bundle will be in `build/macos/Build/Products/Release/`
 
-### Android
-
+#### Android
 ```bash
 flutter build apk --release
 ```
