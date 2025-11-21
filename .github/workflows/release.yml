@@ -114,7 +114,7 @@ jobs:
             artifacts/qtask-windows-x64/qtask-windows-x64.zip
             artifacts/qtask-macos-arm64/qtask-macos-arm64.zip
             artifacts/qtask-android/qtask-android.apk
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           draft: false
           prerelease: false
         env:
