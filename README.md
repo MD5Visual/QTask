@@ -44,6 +44,9 @@ You can download the latest version of QTask for your platform from our [GitHub 
 
 If you want to build QTask from source or contribute to the project, follow these steps.
 
+> [!IMPORTANT]
+> **Version Control**: For any code change or pull request, you must increment the version number in `pubspec.yaml` and `README.md`. Version numbers follow the MAJOR.FEATURE.PATCH format.
+
 ### Prerequisites
 
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) (3.24.0 or higher)
@@ -110,4 +113,4 @@ For issues and feature requests, please use the [GitHub Issues](https://github.c
 
 ---
 
-**Version**: 0.9.0
+**Version**: 0.9.1

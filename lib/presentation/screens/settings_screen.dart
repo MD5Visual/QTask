@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:q_task/data/services/backup_service.dart';
 import 'package:q_task/data/services/storage_service.dart';
 import 'package:q_task/presentation/providers/settings_provider.dart';
+import 'package:macos_secure_bookmarks/macos_secure_bookmarks.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -409,8 +410,22 @@ class SettingsScreen extends StatelessWidget {
         );
 
         if (confirmed == true) {
+          String? bookmark;
+          if (Platform.isMacOS) {
+            try {
+              final secureBookmarks = SecureBookmarks();
+              bookmark = await secureBookmarks.bookmark(File(directoryPath));
+            } catch (e) {
+              debugPrint('Failed to create bookmark: $e');
+            }
+          }
+
           provider.updateSettings(
-            provider.settings.copyWith(customDataPath: directoryPath),
+            provider.settings.copyWith(
+              customDataPath: directoryPath,
+              macosBookmark: bookmark,
+              forceMacosBookmarkNull: bookmark == null,
+            ),
           );
 
           if (context.mounted) {

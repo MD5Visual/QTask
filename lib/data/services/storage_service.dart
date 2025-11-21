@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:q_task/presentation/providers/settings_provider.dart';
+import 'package:macos_secure_bookmarks/macos_secure_bookmarks.dart';
 
 class StorageService {
   final SettingsProvider _settingsProvider;
@@ -11,9 +13,27 @@ class StorageService {
   Future<Directory> getRootDirectory() async {
     final customPath = _settingsProvider.settings.customDataPath;
     if (customPath != null && customPath.isNotEmpty) {
+      if (Platform.isMacOS) {
+        final bookmark = _settingsProvider.settings.macosBookmark;
+        if (bookmark != null) {
+          try {
+            final secureBookmarks = SecureBookmarks();
+            final resolved = await secureBookmarks.resolveBookmark(bookmark);
+            await secureBookmarks
+                .startAccessingSecurityScopedResource(resolved);
+          } catch (e) {
+            debugPrint('Failed to access security scoped resource: $e');
+          }
+        }
+      }
+
       final dir = Directory(customPath);
-      if (await dir.exists()) {
-        return dir;
+      try {
+        if (await dir.exists()) {
+          return dir;
+        }
+      } catch (e) {
+        debugPrint('Failed to check custom path existence: $e');
       }
     }
 

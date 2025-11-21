@@ -12,6 +12,7 @@ class SettingsModel {
   final bool? isDarkMode; // null = system
   final int fuzzySearchTolerance;
   final String? customDataPath;
+  final String? macosBookmark;
 
   const SettingsModel({
     this.primaryColor = 0xFF3F51B5,
@@ -22,6 +23,7 @@ class SettingsModel {
     this.isDarkMode,
     this.fuzzySearchTolerance = 2,
     this.customDataPath,
+    this.macosBookmark,
   });
 
   SettingsModel copyWith({
@@ -35,6 +37,8 @@ class SettingsModel {
     int? fuzzySearchTolerance,
     String? customDataPath,
     bool forceCustomDataPathNull = false,
+    String? macosBookmark,
+    bool forceMacosBookmarkNull = false,
   }) {
     return SettingsModel(
       primaryColor: primaryColor ?? this.primaryColor,
@@ -47,6 +51,8 @@ class SettingsModel {
       customDataPath: forceCustomDataPathNull
           ? null
           : (customDataPath ?? this.customDataPath),
+      macosBookmark:
+          forceMacosBookmarkNull ? null : (macosBookmark ?? this.macosBookmark),
     );
   }
 
@@ -60,6 +66,7 @@ class SettingsModel {
       'isDarkMode': isDarkMode,
       'fuzzySearchTolerance': fuzzySearchTolerance,
       'customDataPath': customDataPath,
+      'macosBookmark': macosBookmark,
     };
   }
 
@@ -73,6 +80,7 @@ class SettingsModel {
       isDarkMode: json['isDarkMode'],
       fuzzySearchTolerance: json['fuzzySearchTolerance'] ?? 2,
       customDataPath: json['customDataPath'],
+      macosBookmark: json['macosBookmark'],
     );
   }
 }
