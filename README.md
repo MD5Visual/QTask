@@ -25,8 +25,8 @@ A clean, modern task management application built with Flutter that stores tasks
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/qtask.git
-cd qtask
+git clone https://github.com/MD5Visual/task_app.git
+cd task_app
 ```
 
 2. Install dependencies:
