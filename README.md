@@ -18,7 +18,7 @@ For those who need more control, QTask includes advanced capabilities:
 - **Custom Data Storage**: Choose exactly where your data is saved (perfect for syncing via Dropbox/iCloud/Nextcloud).
 - **Import & Export**: Full backup and restore capabilities to keep your data safe.
 
-## � Getting Started
+## 🏁 Getting Started
 
 ### Download & Install
 
