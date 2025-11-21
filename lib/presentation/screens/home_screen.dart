@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -20,14 +21,21 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  Timer? _initTimer;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final taskProvider = context.read<TaskProvider>();
-      final listProvider = context.read<TaskListProvider>();
-      await taskProvider.initialize();
-      await listProvider.initialize();
+    _initTimer = Timer(Duration.zero, () async {
+      if (!mounted) return;
+      try {
+        final taskProvider = context.read<TaskProvider>();
+        final listProvider = context.read<TaskListProvider>();
+        await taskProvider.initialize();
+        await listProvider.initialize();
+      } catch (e) {
+        debugPrint('Error initializing providers: $e');
+      }
     });
   }
 
@@ -70,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _initTimer?.cancel();
     _listProvider?.removeListener(_scheduleHiddenSync);
     super.dispose();
   }

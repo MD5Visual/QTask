@@ -3,9 +3,11 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:markdown_quill/markdown_quill.dart';
+import 'package:provider/provider.dart';
 import 'package:q_task/data/services/attachment_service.dart';
 import 'package:q_task/domain/models/task.dart';
 import 'package:q_task/domain/models/task_list.dart';
@@ -26,7 +28,6 @@ class RichTaskDetailScreen extends StatefulWidget {
 class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
   late TextEditingController _titleController;
   late quill.QuillController _quillController;
-  final AttachmentService _attachmentService = AttachmentService();
 
   List<String> _selectedListIds = [];
   List<TaskList> _availableLists = [];
@@ -116,13 +117,16 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
   }
 
   Future<void> _handleDrop(List<XFile> files) async {
-    final taskId = widget.task?.id ??
-        'temp_${DateTime.now().millisecondsSinceEpoch}'; // Handle new task case better in real app
+    final attachmentService = context.read<AttachmentService>();
+    final taskId =
+        widget.task?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+    // Note: If it's a new task, we might be saving attachments to a temp ID.
+    // Real implementation should handle this better, but for now we use a generated ID.
 
     for (final file in files) {
       final ext = file.name.split('.').last.toLowerCase();
       if (['png', 'jpg', 'jpeg', 'gif', 'webp'].contains(ext)) {
-        final savedPath = await _attachmentService.saveAttachment(taskId, file);
+        final savedPath = await attachmentService.saveAttachment(taskId, file);
 
         final index = _quillController.selection.baseOffset;
         final length = _quillController.selection.extentOffset - index;

@@ -12,7 +12,8 @@ import 'package:q_task/main.dart';
 void main() {
   testWidgets('QTask loads correctly', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const TaskApp());
+    await tester.pumpWidget(const TaskApp(versionString: 'QTask Test'));
+    await tester.pumpAndSettle();
 
     // Verify that the app initializes
     expect(find.byType(TaskApp), findsOneWidget);

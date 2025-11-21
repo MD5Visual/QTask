@@ -1,15 +1,18 @@
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
+import 'package:q_task/data/services/storage_service.dart';
 import 'package:q_task/domain/models/task.dart';
 import 'package:q_task/domain/repositories/i_repository.dart';
 
 class MarkdownTaskRepository implements ITaskRepository {
   late Directory _tasksDir;
   static const String _indexFileName = 'tasks_index.md';
+  final StorageService _storageService;
+
+  MarkdownTaskRepository(this._storageService);
 
   Future<void> _ensureDirectoryExists() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    _tasksDir = Directory('${appDir.path}/tasks');
+    final rootDir = await _storageService.getRootDirectory();
+    _tasksDir = Directory('${rootDir.path}/tasks');
     if (!await _tasksDir.exists()) {
       await _tasksDir.create(recursive: true);
     }

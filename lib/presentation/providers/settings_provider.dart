@@ -11,6 +11,7 @@ class SettingsModel {
   final double cornerRadius;
   final bool? isDarkMode; // null = system
   final int fuzzySearchTolerance;
+  final String? customDataPath;
 
   const SettingsModel({
     this.primaryColor = 0xFF3F51B5,
@@ -20,6 +21,7 @@ class SettingsModel {
     this.cornerRadius = 8.0,
     this.isDarkMode,
     this.fuzzySearchTolerance = 2,
+    this.customDataPath,
   });
 
   SettingsModel copyWith({
@@ -31,6 +33,8 @@ class SettingsModel {
     bool? isDarkMode,
     bool forceDarkModeNull = false,
     int? fuzzySearchTolerance,
+    String? customDataPath,
+    bool forceCustomDataPathNull = false,
   }) {
     return SettingsModel(
       primaryColor: primaryColor ?? this.primaryColor,
@@ -40,6 +44,9 @@ class SettingsModel {
       cornerRadius: cornerRadius ?? this.cornerRadius,
       isDarkMode: forceDarkModeNull ? null : (isDarkMode ?? this.isDarkMode),
       fuzzySearchTolerance: fuzzySearchTolerance ?? this.fuzzySearchTolerance,
+      customDataPath: forceCustomDataPathNull
+          ? null
+          : (customDataPath ?? this.customDataPath),
     );
   }
 
@@ -52,6 +59,7 @@ class SettingsModel {
       'cornerRadius': cornerRadius,
       'isDarkMode': isDarkMode,
       'fuzzySearchTolerance': fuzzySearchTolerance,
+      'customDataPath': customDataPath,
     };
   }
 
@@ -64,6 +72,7 @@ class SettingsModel {
       cornerRadius: (json['cornerRadius'] ?? 8.0).toDouble(),
       isDarkMode: json['isDarkMode'],
       fuzzySearchTolerance: json['fuzzySearchTolerance'] ?? 2,
+      customDataPath: json['customDataPath'],
     );
   }
 }
@@ -75,6 +84,10 @@ class SettingsProvider extends ChangeNotifier {
 
   SettingsProvider() {
     _loadSettings();
+  }
+
+  Future<void> loadSettings() async {
+    await _loadSettings();
   }
 
   Future<void> _loadSettings() async {

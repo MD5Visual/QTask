@@ -8,8 +8,8 @@ import 'package:q_task/domain/repositories/i_repository.dart';
 class TaskProvider extends ChangeNotifier {
   static const String unlistedTasksId = '__unlisted__';
 
-  final ITaskRepository _taskRepository;
-  final ITaskService _taskService;
+  ITaskRepository _taskRepository;
+  ITaskService _taskService;
 
   List<Task> _allTasks = [];
   List<Task> _filteredTasks = [];
@@ -26,6 +26,16 @@ class TaskProvider extends ChangeNotifier {
     required ITaskService taskService,
   })  : _taskRepository = taskRepository,
         _taskService = taskService;
+
+  void updateDependencies({
+    required ITaskRepository taskRepository,
+    required ITaskService taskService,
+  }) {
+    _taskRepository = taskRepository;
+    _taskService = taskService;
+    // Defer initialization to avoid notifying during build
+    Future.microtask(() => initialize());
+  }
 
   // Getters
   List<Task> get tasks => _filteredTasks;

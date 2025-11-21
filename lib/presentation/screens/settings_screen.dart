@@ -1,8 +1,14 @@
+import 'dart:io';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:path/path.dart' as path;
 import 'package:provider/provider.dart';
+import 'package:q_task/data/services/backup_service.dart';
+import 'package:q_task/data/services/storage_service.dart';
 import 'package:q_task/presentation/providers/settings_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -20,7 +26,171 @@ class SettingsScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _buildSectionHeader(context, 'Appearance'),
+              const Divider(),
+              _buildSectionHeader(context, 'Data & Storage'),
+              FutureBuilder<Directory>(
+                future: context.read<StorageService>().getRootDirectory(),
+                builder: (context, snapshot) {
+                  final path = snapshot.data?.path ?? 'Loading...';
+                  final isDefault = provider.settings.customDataPath == null;
+
+                  return Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.folder_open),
+                        title: const Text('Storage Location'),
+                        subtitle: Text(isDefault
+                            ? 'Default (Sandboxed)\n$path'
+                            : 'Custom\n$path'),
+                        isThreeLine: true,
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => _pickStorageLocation(context, provider),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.open_in_new),
+                                label: const Text('Open Data Folder'),
+                                onPressed: snapshot.hasData
+                                    ? () => _openDataFolder(snapshot.data!.path)
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.download),
+                title: const Text('Export Data'),
+                subtitle:
+                    const Text('Save all tasks and settings to a zip file'),
+                onTap: () async {
+                  try {
+                    final backupService = context.read<BackupService>();
+                    final backupPath = await backupService.createBackup();
+
+                    // Prompt user to save the file
+                    final fileName = path.basename(backupPath);
+                    final saveLocation = await getSaveLocation(
+                      suggestedName: fileName,
+                      acceptedTypeGroups: [
+                        const XTypeGroup(
+                          label: 'Zip',
+                          extensions: ['zip'],
+                        ),
+                      ],
+                    );
+
+                    if (saveLocation != null) {
+                      final file = File(backupPath);
+                      await file.copy(saveLocation.path);
+                      // Cleanup temp file
+                      await file.delete();
+
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content:
+                                  Text('Exported to ${saveLocation.path}')),
+                        );
+                      }
+                    } else {
+                      // User cancelled, cleanup
+                      await File(backupPath).delete();
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Export failed: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.upload),
+                title: const Text('Import Data'),
+                subtitle: const Text('Restore from a backup zip file'),
+                onTap: () async {
+                  final typeGroup = const XTypeGroup(
+                    label: 'Zip',
+                    extensions: ['zip'],
+                  );
+                  final file = await openFile(acceptedTypeGroups: [typeGroup]);
+
+                  if (file != null && context.mounted) {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Confirm Import'),
+                        content: const Text(
+                          'This will overwrite all current data with the backup content. Are you sure?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Import'),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (confirmed == true && context.mounted) {
+                      try {
+                        final backupService = context.read<BackupService>();
+                        await backupService.restoreBackup(file.path);
+
+                        // Reload settings
+                        if (context.mounted) {
+                          await provider.loadSettings();
+
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Import Successful'),
+                              content: const Text(
+                                'Data restored successfully. The app needs to restart to apply all changes.',
+                              ),
+                              actions: [
+                                FilledButton(
+                                  onPressed: () {
+                                    // In a real app we might restart, here we just close dialog
+                                    // and maybe navigate home or let user manually restart if needed.
+                                    // For Flutter desktop, we can't easily "restart" programmatically
+                                    // without external help, but reloading providers helps.
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Import failed: $e')),
+                          );
+                        }
+                      }
+                    }
+                  }
+                },
+              ),
+              const Divider(),
+              _buildSectionHeader(context, 'Advanced'),
               ListTile(
                 title: const Text('Theme Mode'),
                 subtitle: Text(
@@ -208,6 +378,71 @@ class SettingsScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _pickStorageLocation(
+      BuildContext context, SettingsProvider provider) async {
+    final String? directoryPath = await getDirectoryPath();
+    if (directoryPath != null) {
+      // Confirm change
+      if (context.mounted) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Change Storage Location'),
+            content: Text(
+              'This will change where your data is saved to:\n$directoryPath\n\n'
+              'Existing data will NOT be moved automatically. You will start with an empty workspace in the new location.\n\n'
+              'Are you sure?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Change'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed == true) {
+          provider.updateSettings(
+            provider.settings.copyWith(customDataPath: directoryPath),
+          );
+
+          if (context.mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => AlertDialog(
+                title: const Text('Location Changed'),
+                content: const Text(
+                  'Storage location updated. Please restart the app to apply changes.',
+                ),
+                actions: [
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _openDataFolder(String path) async {
+    final uri = Uri.directory(path);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      debugPrint('Could not launch $uri');
+    }
   }
 }
 

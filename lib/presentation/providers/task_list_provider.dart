@@ -3,7 +3,7 @@ import 'package:q_task/domain/models/task_list.dart';
 import 'package:q_task/domain/repositories/i_repository.dart';
 
 class TaskListProvider extends ChangeNotifier {
-  final ITaskListRepository _taskListRepository;
+  ITaskListRepository _taskListRepository;
 
   List<TaskList> _taskLists = [];
   bool _isLoading = false;
@@ -11,6 +11,12 @@ class TaskListProvider extends ChangeNotifier {
   TaskListProvider({
     required ITaskListRepository taskListRepository,
   }) : _taskListRepository = taskListRepository;
+
+  void updateDependencies(ITaskListRepository taskListRepository) {
+    _taskListRepository = taskListRepository;
+    // Defer initialization to avoid notifying during build
+    Future.microtask(() => initialize());
+  }
 
   // Getters
   List<TaskList> get lists => _sortedByPosition(_taskLists);
