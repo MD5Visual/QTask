@@ -37,11 +37,6 @@ You can download the latest version of QTask for your platform from our [GitHub 
 3. Drag `QTask.app` to your Applications folder.
 4. Open the app.
 
-#### Android
-1. Download the `qtask-android.apk` file.
-2. Open the file on your Android device to install it.
-3. (Note: You may need to allow installation from unknown sources).
-
 ## 💻 Development & Contributing
 
 If you want to build QTask from source or contribute to the project, follow these steps.
