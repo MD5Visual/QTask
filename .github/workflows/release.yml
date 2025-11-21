@@ -26,13 +26,13 @@ jobs:
       - name: Create Windows archive
         run: |
           cd build/windows/x64/runner/Release
-          Compress-Archive -Path * -DestinationPath ../../../../../qtask-windows-x64.zip
+          Compress-Archive -Path * -DestinationPath ../../../../../qtask-windows-x64-${{ github.ref_name }}.zip
       
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: qtask-windows-x64
-          path: qtask-windows-x64.zip
+          path: qtask-windows-x64-${{ github.ref_name }}.zip
 
   build-macos:
     runs-on: macos-14  # macOS 14 runs on Apple Silicon
@@ -54,13 +54,13 @@ jobs:
       - name: Create macOS archive
         run: |
           cd build/macos/Build/Products/Release
-          zip -r ../../../../../qtask-macos-arm64.zip q_task.app
+          zip -r ../../../../../qtask-macos-arm64-${{ github.ref_name }}.zip q_task.app
       
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: qtask-macos-arm64
-          path: qtask-macos-arm64.zip
+          path: qtask-macos-arm64-${{ github.ref_name }}.zip
 
   build-android:
     runs-on: ubuntu-latest
@@ -86,13 +86,13 @@ jobs:
         run: flutter build apk --release
       
       - name: Rename APK
-        run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/qtask-android.apk
+        run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/qtask-android-${{ github.ref_name }}.apk
 
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
           name: qtask-android
-          path: build/app/outputs/flutter-apk/qtask-android.apk
+          path: build/app/outputs/flutter-apk/qtask-android-${{ github.ref_name }}.apk
 
   create-release:
     needs: [build-windows, build-macos, build-android]
@@ -111,9 +111,9 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/qtask-windows-x64/qtask-windows-x64.zip
-            artifacts/qtask-macos-arm64/qtask-macos-arm64.zip
-            artifacts/qtask-android/qtask-android.apk
+            artifacts/qtask-windows-x64/qtask-windows-x64-${{ github.ref_name }}.zip
+            artifacts/qtask-macos-arm64/qtask-macos-arm64-${{ github.ref_name }}.zip
+            artifacts/qtask-android/qtask-android-${{ github.ref_name }}.apk
           body_path: RELEASE_NOTES.md
           draft: false
           prerelease: false
