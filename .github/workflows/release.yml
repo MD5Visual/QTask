@@ -85,11 +85,14 @@ jobs:
       - name: Build Android APK
         run: flutter build apk --release
       
+      - name: Rename APK
+        run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/qtask-android.apk
+
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
           name: qtask-android
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/qtask-android.apk
 
   create-release:
     needs: [build-windows, build-macos, build-android]
@@ -110,7 +113,7 @@ jobs:
           files: |
             artifacts/qtask-windows-x64/qtask-windows-x64.zip
             artifacts/qtask-macos-arm64/qtask-macos-arm64.zip
-            artifacts/qtask-android/app-release.apk
+            artifacts/qtask-android/qtask-android.apk
           generate_release_notes: true
           draft: false
           prerelease: false
