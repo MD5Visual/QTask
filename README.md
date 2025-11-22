@@ -110,4 +110,5 @@ For issues and feature requests, please use the [GitHub Issues](https://github.c
 
 ---
 
-**Version**: 0.9.5
+**Dev Version**: 0.9.5
+**Release Version**: 0.9.1
