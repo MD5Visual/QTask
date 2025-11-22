@@ -8,6 +8,7 @@ import 'package:q_task/data/repositories/markdown_task_repository.dart';
 import 'package:q_task/data/services/attachment_service.dart';
 import 'package:q_task/data/services/storage_service.dart';
 import 'package:q_task/data/services/task_service.dart';
+import 'package:q_task/data/services/backup_service.dart';
 import 'package:q_task/presentation/providers/settings_provider.dart';
 import 'package:q_task/presentation/providers/task_provider.dart';
 import 'package:q_task/presentation/providers/task_list_provider.dart';
@@ -15,14 +16,21 @@ import 'package:q_task/presentation/screens/home_screen.dart';
 import 'package:q_task/presentation/theme/app_theme.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'dart:io';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await windowManager.ensureInitialized();
+
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    await windowManager.ensureInitialized();
+  }
 
   final packageInfo = await PackageInfo.fromPlatform();
   final versionString = 'QTask v${packageInfo.version}';
 
-  await windowManager.setTitle(versionString);
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    await windowManager.setTitle(versionString);
+  }
 
   runApp(TaskApp(versionString: versionString));
 }
@@ -55,6 +63,9 @@ class TaskApp extends StatelessWidget {
         ),
         ProxyProvider<StorageService, AttachmentService>(
           update: (_, storageService, __) => AttachmentService(storageService),
+        ),
+        ProxyProvider<StorageService, BackupService>(
+          update: (_, storageService, __) => BackupService(storageService),
         ),
         ChangeNotifierProxyProvider2<MarkdownTaskRepository, AttachmentService,
             TaskProvider>(

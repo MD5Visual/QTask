@@ -10,6 +10,7 @@ import 'package:q_task/data/services/storage_service.dart';
 import 'package:q_task/presentation/providers/settings_provider.dart';
 import 'package:macos_secure_bookmarks/macos_secure_bookmarks.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -77,34 +78,39 @@ class SettingsScreen extends StatelessWidget {
                     final backupService = context.read<BackupService>();
                     final backupPath = await backupService.createBackup();
 
-                    // Prompt user to save the file
-                    final fileName = path.basename(backupPath);
-                    final saveLocation = await getSaveLocation(
-                      suggestedName: fileName,
-                      acceptedTypeGroups: [
-                        const XTypeGroup(
-                          label: 'Zip',
-                          extensions: ['zip'],
-                        ),
-                      ],
-                    );
-
-                    if (saveLocation != null) {
-                      final file = File(backupPath);
-                      await file.copy(saveLocation.path);
-                      // Cleanup temp file
-                      await file.delete();
-
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content:
-                                  Text('Exported to ${saveLocation.path}')),
-                        );
-                      }
+                    // Platform-specific export logic
+                    if (Platform.isAndroid || Platform.isIOS) {
+                      await Share.shareXFiles([XFile(backupPath)]);
                     } else {
-                      // User cancelled, cleanup
-                      await File(backupPath).delete();
+                      // Desktop: Prompt user to save the file
+                      final fileName = path.basename(backupPath);
+                      final saveLocation = await getSaveLocation(
+                        suggestedName: fileName,
+                        acceptedTypeGroups: [
+                          const XTypeGroup(
+                            label: 'Zip',
+                            extensions: ['zip'],
+                          ),
+                        ],
+                      );
+
+                      if (saveLocation != null) {
+                        final file = File(backupPath);
+                        await file.copy(saveLocation.path);
+                        // Cleanup temp file
+                        await file.delete();
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content:
+                                    Text('Exported to ${saveLocation.path}')),
+                          );
+                        }
+                      } else {
+                        // User cancelled, cleanup
+                        await File(backupPath).delete();
+                      }
                     }
                   } catch (e) {
                     if (context.mounted) {

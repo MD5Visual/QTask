@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -247,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       itemCount: taskProvider.tasks.length,
                       itemBuilder: (context, index) {
                         final task = taskProvider.tasks[index];
-                        return TaskCard(
+                        final card = TaskCard(
                           key: Key(task.id),
                           task: task,
                           index: index,
@@ -262,6 +263,41 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                           availableLists: listProvider.lists,
                         );
+
+                        if (Platform.isAndroid) {
+                          return Dismissible(
+                            key: Key(task.id),
+                            direction: DismissDirection.startToEnd,
+                            background: Container(
+                              color: Theme.of(context).colorScheme.error,
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.only(left: 16),
+                              child: Icon(
+                                Icons.delete,
+                                color: Theme.of(context).colorScheme.onError,
+                              ),
+                            ),
+                            onDismissed: (direction) {
+                              taskProvider.deleteTask(task.id);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text('Task deleted'),
+                                  duration: const Duration(seconds: 30),
+                                  showCloseIcon: true,
+                                  action: SnackBarAction(
+                                    label: 'Undo',
+                                    onPressed: () {
+                                      taskProvider.addTask(task);
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
+                            child: card,
+                          );
+                        }
+
+                        return card;
                       },
                     ),
                   ),
