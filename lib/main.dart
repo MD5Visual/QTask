@@ -15,6 +15,9 @@ import 'package:q_task/presentation/providers/task_list_provider.dart';
 import 'package:q_task/presentation/screens/home_screen.dart';
 import 'package:q_task/presentation/theme/app_theme.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:q_task/presentation/providers/auth_provider.dart';
+import 'firebase_options.dart';
 
 import 'dart:io';
 
@@ -23,6 +26,15 @@ void main() async {
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await windowManager.ensureInitialized();
+  }
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
+    // Continue running the app even if Firebase fails (e.g. offline or no config)
   }
 
   final packageInfo = await PackageInfo.fromPlatform();
@@ -49,6 +61,9 @@ class TaskApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(
           create: (_) => SettingsProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => AuthProvider(),
         ),
         ProxyProvider<SettingsProvider, StorageService>(
           update: (_, settingsProvider, __) => StorageService(settingsProvider),

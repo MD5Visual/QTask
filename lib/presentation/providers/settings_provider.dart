@@ -13,6 +13,7 @@ class SettingsModel {
   final int fuzzySearchTolerance;
   final String? customDataPath;
   final String? macosBookmark;
+  final bool isSyncEnabled;
 
   const SettingsModel({
     this.primaryColor = 0xFF3F51B5,
@@ -24,6 +25,7 @@ class SettingsModel {
     this.fuzzySearchTolerance = 2,
     this.customDataPath,
     this.macosBookmark,
+    this.isSyncEnabled = false,
   });
 
   SettingsModel copyWith({
@@ -39,6 +41,7 @@ class SettingsModel {
     bool forceCustomDataPathNull = false,
     String? macosBookmark,
     bool forceMacosBookmarkNull = false,
+    bool? isSyncEnabled,
   }) {
     return SettingsModel(
       primaryColor: primaryColor ?? this.primaryColor,
@@ -53,6 +56,7 @@ class SettingsModel {
           : (customDataPath ?? this.customDataPath),
       macosBookmark:
           forceMacosBookmarkNull ? null : (macosBookmark ?? this.macosBookmark),
+      isSyncEnabled: isSyncEnabled ?? this.isSyncEnabled,
     );
   }
 
@@ -67,6 +71,7 @@ class SettingsModel {
       'fuzzySearchTolerance': fuzzySearchTolerance,
       'customDataPath': customDataPath,
       'macosBookmark': macosBookmark,
+      'isSyncEnabled': isSyncEnabled,
     };
   }
 
@@ -81,6 +86,7 @@ class SettingsModel {
       fuzzySearchTolerance: json['fuzzySearchTolerance'] ?? 2,
       customDataPath: json['customDataPath'],
       macosBookmark: json['macosBookmark'],
+      isSyncEnabled: json['isSyncEnabled'] ?? false,
     );
   }
 }

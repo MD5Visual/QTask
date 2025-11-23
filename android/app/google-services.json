@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "925390015146",
+    "project_id": "qtask-backend-service-c667a2",
+    "storage_bucket": "qtask-backend-service-c667a2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:925390015146:android:98fcac29c18f6e7cda5ed3",
+        "android_client_info": {
+          "package_name": "com.example.task_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "925390015146-lpdjv50o3m4uli3dcao5133bjp4fui9n.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.task_app",
+            "certificate_hash": "189fca3dbacb4f9b2f138ddf6261b7a805a84763"
+          }
+        },
+        {
+          "client_id": "925390015146-o7hvpmoje971kk154gfb2j8jlnovsoi4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBNMwmRipoQwaDw9MGsVmtSN9odi9c-IWY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "925390015146-fprf8cvitaet4pp8mpgpoc21l1lai075.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "925390015146-hpleqqh04i7nkdimaugm8o7pneddlt4e.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.md5.qTask"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

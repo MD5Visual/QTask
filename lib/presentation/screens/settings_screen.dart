@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:q_task/data/services/backup_service.dart';
 import 'package:q_task/data/services/storage_service.dart';
 import 'package:q_task/presentation/providers/settings_provider.dart';
+import 'package:q_task/presentation/providers/auth_provider.dart';
 import 'package:macos_secure_bookmarks/macos_secure_bookmarks.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
@@ -28,6 +29,61 @@ class SettingsScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              _buildSectionHeader(context, 'Cloud Sync'),
+              SwitchListTile(
+                title: const Text('Enable Cloud Sync'),
+                subtitle:
+                    const Text('Sync tasks across devices using Firebase'),
+                value: settings.isSyncEnabled,
+                onChanged: (value) {
+                  provider
+                      .updateSettings(settings.copyWith(isSyncEnabled: value));
+                },
+              ),
+              if (settings.isSyncEnabled) ...[
+                Consumer<AuthProvider>(
+                  builder: (context, auth, _) {
+                    if (auth.isAuthenticated) {
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundImage: auth.user?.photoURL != null
+                              ? NetworkImage(auth.user!.photoURL!)
+                              : null,
+                          child: auth.user?.photoURL == null
+                              ? const Icon(Icons.person)
+                              : null,
+                        ),
+                        title: Text(auth.user?.displayName ?? 'User'),
+                        subtitle: Text(auth.user?.email ?? ''),
+                        trailing: TextButton(
+                          onPressed: () => auth.signOut(),
+                          child: const Text('Sign Out'),
+                        ),
+                      );
+                    } else {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0, vertical: 8.0),
+                        child: FilledButton.icon(
+                          icon: const Icon(Icons.login),
+                          label: const Text('Sign in with Google'),
+                          onPressed: () async {
+                            try {
+                              await auth.signInWithGoogle();
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Login failed: $e')),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
               const Divider(),
               _buildSectionHeader(context, 'Data & Storage'),
               FutureBuilder<Directory>(
@@ -126,7 +182,7 @@ class SettingsScreen extends StatelessWidget {
                 title: const Text('Import Data'),
                 subtitle: const Text('Restore from a backup zip file'),
                 onTap: () async {
-                  final typeGroup = const XTypeGroup(
+                  const typeGroup = XTypeGroup(
                     label: 'Zip',
                     extensions: ['zip'],
                   );

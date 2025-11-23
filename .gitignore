@@ -54,3 +54,6 @@ task_attachments/
 *.dll
 *.pdb
 windows/flutter/ephemeral/
+
+# OAuth credentials (local only)
+lib/oauth_config.json
