@@ -56,4 +56,4 @@ task_attachments/
 windows/flutter/ephemeral/
 
 # OAuth credentials (local only)
-lib/oauth_config.json
+assets/oauth_config.json

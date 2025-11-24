@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in_all_platforms/google_sign_in_all_platforms.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -35,18 +36,15 @@ class AuthProvider extends ChangeNotifier {
       // Load OAuth credentials for desktop platforms
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
         try {
-          // Try to load from local config file (gitignored)
-          final configFile = File('lib/oauth_config.json');
-          if (await configFile.exists()) {
-            final configJson = jsonDecode(await configFile.readAsString());
-            clientId = configJson['web_client_id'];
-            clientSecret = configJson['web_client_secret'];
-          } else {
-            debugPrint(
-                'WARNING: lib/oauth_config.json not found. Create it from oauth_config.json.example');
-          }
+          // Try to load from assets
+          final configString =
+              await rootBundle.loadString('assets/oauth_config.json');
+          final configJson = jsonDecode(configString);
+          clientId = configJson['web_client_id'];
+          clientSecret = configJson['web_client_secret'];
         } catch (e) {
-          debugPrint('Error loading OAuth config: $e');
+          debugPrint(
+              'WARNING: assets/oauth_config.json not found or invalid. Create it from oauth_config.json.example. Error: $e');
         }
       }
 
@@ -68,6 +66,8 @@ class AuthProvider extends ChangeNotifier {
       }
 
       // Use google_sign_in_all_platforms API (works on all platforms)
+      // Force a fresh sign-in by signing out first
+      await _googleSignIn.signOut();
       final GoogleSignInCredentials? credentials = await _googleSignIn.signIn();
 
       if (credentials == null) {
