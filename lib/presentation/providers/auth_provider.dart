@@ -33,7 +33,7 @@ class AuthProvider extends ChangeNotifier {
       String? clientSecret;
 
       // Load OAuth credentials for desktop platforms
-      if (Platform.isWindows || Platform.isLinux) {
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
         try {
           // Try to load from local config file (gitignored)
           final configFile = File('lib/oauth_config.json');
