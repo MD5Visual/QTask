@@ -19,6 +19,9 @@ jobs:
       
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Generate Build Hash
+        run: dart run tool/generate_build_hash.dart
       
       - name: Build Windows
         run: flutter build windows --release
@@ -47,6 +50,9 @@ jobs:
       
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Generate Build Hash
+        run: dart run tool/generate_build_hash.dart
       
       - name: Build macOS
         run: flutter build macos --release
@@ -81,6 +87,9 @@ jobs:
       
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Generate Build Hash
+        run: dart run tool/generate_build_hash.dart
       
       - name: Build Android APK
         run: flutter build apk --release
