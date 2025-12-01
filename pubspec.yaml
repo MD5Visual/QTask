@@ -54,4 +54,4 @@ flutter:
     - assets/dictionaries/hunspell/en_US.aff
     - assets/dictionaries/hunspell/es_ES.dic
     - assets/dictionaries/hunspell/es_ES.aff
-    - assets/oauth_config.json
+
