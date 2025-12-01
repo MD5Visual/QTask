@@ -12,19 +12,45 @@ import 'package:q_task/presentation/providers/auth_provider.dart';
 import 'package:macos_secure_bookmarks/macos_secure_bookmarks.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:q_task/generated/build_info.dart';
 
-class SettingsScreen extends StatelessWidget {
+import 'package:package_info_plus/package_info_plus.dart';
+
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  PackageInfo? _packageInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPackageInfo();
+  }
+
+  Future<void> _loadPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _packageInfo = info;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings & Debug'),
+        title: const Text('Settings'),
       ),
       body: Consumer<SettingsProvider>(
         builder: (context, provider, child) {
           final settings = provider.settings;
+          final isDev = settings.isDeveloperMode;
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -85,175 +111,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ],
               const Divider(),
-              _buildSectionHeader(context, 'Data & Storage'),
-              FutureBuilder<Directory>(
-                future: context.read<StorageService>().getRootDirectory(),
-                builder: (context, snapshot) {
-                  final path = snapshot.data?.path ?? 'Loading...';
-                  final isDefault = provider.settings.customDataPath == null;
-
-                  return Column(
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.folder_open),
-                        title: const Text('Storage Location'),
-                        subtitle: Text(isDefault
-                            ? 'Default (Sandboxed)\n$path'
-                            : 'Custom\n$path'),
-                        isThreeLine: true,
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => _pickStorageLocation(context, provider),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                icon: const Icon(Icons.open_in_new),
-                                label: const Text('Open Data Folder'),
-                                onPressed: snapshot.hasData
-                                    ? () => _openDataFolder(snapshot.data!.path)
-                                    : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.download),
-                title: const Text('Export Data'),
-                subtitle:
-                    const Text('Save all tasks and settings to a zip file'),
-                onTap: () async {
-                  try {
-                    final backupService = context.read<BackupService>();
-                    final backupPath = await backupService.createBackup();
-
-                    // Platform-specific export logic
-                    if (Platform.isAndroid || Platform.isIOS) {
-                      await Share.shareXFiles([XFile(backupPath)]);
-                    } else {
-                      // Desktop: Prompt user to save the file
-                      final fileName = path.basename(backupPath);
-                      final saveLocation = await getSaveLocation(
-                        suggestedName: fileName,
-                        acceptedTypeGroups: [
-                          const XTypeGroup(
-                            label: 'Zip',
-                            extensions: ['zip'],
-                          ),
-                        ],
-                      );
-
-                      if (saveLocation != null) {
-                        final file = File(backupPath);
-                        await file.copy(saveLocation.path);
-                        // Cleanup temp file
-                        await file.delete();
-
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content:
-                                    Text('Exported to ${saveLocation.path}')),
-                          );
-                        }
-                      } else {
-                        // User cancelled, cleanup
-                        await File(backupPath).delete();
-                      }
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Export failed: $e')),
-                      );
-                    }
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.upload),
-                title: const Text('Import Data'),
-                subtitle: const Text('Restore from a backup zip file'),
-                onTap: () async {
-                  const typeGroup = XTypeGroup(
-                    label: 'Zip',
-                    extensions: ['zip'],
-                  );
-                  final file = await openFile(acceptedTypeGroups: [typeGroup]);
-
-                  if (file != null && context.mounted) {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Confirm Import'),
-                        content: const Text(
-                          'This will overwrite all current data with the backup content. Are you sure?',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Cancel'),
-                          ),
-                          FilledButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Import'),
-                          ),
-                        ],
-                      ),
-                    );
-
-                    if (confirmed == true && context.mounted) {
-                      try {
-                        final backupService = context.read<BackupService>();
-                        await backupService.restoreBackup(file.path);
-
-                        // Reload settings
-                        if (context.mounted) {
-                          await provider.loadSettings();
-
-                          showDialog(
-                            context: context,
-                            barrierDismissible: false,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Import Successful'),
-                              content: const Text(
-                                'Data restored successfully. The app needs to restart to apply all changes.',
-                              ),
-                              actions: [
-                                FilledButton(
-                                  onPressed: () {
-                                    // In a real app we might restart, here we just close dialog
-                                    // and maybe navigate home or let user manually restart if needed.
-                                    // For Flutter desktop, we can't easily "restart" programmatically
-                                    // without external help, but reloading providers helps.
-                                    Navigator.pop(context);
-                                  },
-                                  child: const Text('OK'),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Import failed: $e')),
-                          );
-                        }
-                      }
-                    }
-                  }
-                },
-              ),
-              const Divider(),
-              _buildSectionHeader(context, 'Advanced'),
+              _buildSectionHeader(context, 'Appearance & Behavior'),
               ListTile(
                 title: const Text('Theme Mode'),
                 subtitle: Text(
@@ -285,92 +143,195 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 onTap: () => _showColorPicker(context, provider),
               ),
-              const Divider(),
-              _buildSectionHeader(context, 'Sizing & Spacing'),
-              _buildSlider(
-                context,
-                'Base Font Size',
-                settings.baseFontSize,
-                10.0,
-                32.0,
-                (value) => provider
-                    .updateSettings(settings.copyWith(baseFontSize: value)),
-              ),
-              _buildSlider(
-                context,
-                'Base Padding',
-                settings.basePadding,
-                0.0,
-                48.0,
-                (value) => provider
-                    .updateSettings(settings.copyWith(basePadding: value)),
-              ),
-              _buildSlider(
-                context,
-                'Base Spacing',
-                settings.baseSpacing,
-                0.0,
-                48.0,
-                (value) => provider
-                    .updateSettings(settings.copyWith(baseSpacing: value)),
-              ),
-              _buildSlider(
-                context,
-                'Corner Radius',
-                settings.cornerRadius,
-                0.0,
-                32.0,
-                (value) => provider
-                    .updateSettings(settings.copyWith(cornerRadius: value)),
-              ),
-              const Divider(),
-              _buildSectionHeader(context, 'Search'),
-              _SettingsSliderRow(
-                label: 'Fuzzy Search Tolerance',
-                value: settings.fuzzySearchTolerance.toDouble(),
-                min: 0.0,
-                max: 5.0,
-                onChanged: (value) => provider.updateSettings(
-                    settings.copyWith(fuzzySearchTolerance: value.toInt())),
-              ),
-              const Divider(),
-              _buildSectionHeader(context, 'Data Management'),
               ListTile(
-                leading: const Icon(Icons.upload),
-                title: const Text('Export Settings'),
-                subtitle: const Text('Copy settings JSON to clipboard'),
-                onTap: () {
-                  final json = provider.exportSettings();
-                  Clipboard.setData(ClipboardData(text: json));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Settings copied to clipboard')),
+                title: const Text('Hidden List Behavior'),
+                subtitle: Text(
+                  settings.hiddenTaskBehavior ==
+                          HiddenTaskBehavior.hideIfAnyHidden
+                      ? 'Hide task if ANY list is hidden'
+                      : 'Hide task if ALL lists are hidden',
+                ),
+                trailing: DropdownButton<HiddenTaskBehavior>(
+                  value: settings.hiddenTaskBehavior,
+                  items: const [
+                    DropdownMenuItem(
+                      value: HiddenTaskBehavior.hideIfAnyHidden,
+                      child: Text('Any Hidden'),
+                    ),
+                    DropdownMenuItem(
+                      value: HiddenTaskBehavior.hideIfAllHidden,
+                      child: Text('All Hidden'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      provider.updateSettings(
+                          settings.copyWith(hiddenTaskBehavior: value));
+                    }
+                  },
+                ),
+              ),
+              const Divider(),
+              _buildSectionHeader(context, 'Data & Storage'),
+              FutureBuilder<Directory>(
+                future: context.read<StorageService>().getRootDirectory(),
+                builder: (context, snapshot) {
+                  final path = snapshot.data?.path ?? 'Loading...';
+                  final isDefault = provider.settings.customDataPath == null;
+
+                  return Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.folder_open),
+                        title: const Text('Storage Location'),
+                        subtitle: Text(isDefault
+                            ? 'Default (Sandboxed)\n$path'
+                            : 'Custom\n$path'),
+                        isThreeLine: true,
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => _pickStorageLocation(context, provider),
+                      ),
+                      if (isDev)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  icon: const Icon(Icons.open_in_new),
+                                  label: const Text('Open Data Folder'),
+                                  onPressed: snapshot.hasData
+                                      ? () =>
+                                          _openDataFolder(snapshot.data!.path)
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
                   );
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.download),
-                title: const Text('Import Settings'),
-                subtitle: const Text('Paste settings JSON from clipboard'),
-                onTap: () async {
-                  final data = await Clipboard.getData(Clipboard.kTextPlain);
-                  if (data?.text != null && context.mounted) {
-                    try {
-                      await provider.importSettings(data!.text!);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Settings imported')),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Invalid JSON: $e')),
-                        );
+                title: const Text('Export Data'),
+                subtitle:
+                    const Text('Save all tasks and settings to a zip file'),
+                onTap: () => _handleExportData(context),
+              ),
+              ListTile(
+                leading: const Icon(Icons.upload),
+                title: const Text('Import Data'),
+                subtitle: const Text('Restore from a backup zip file'),
+                onTap: () => _handleImportData(context, provider),
+              ),
+              if (isDev) ...[
+                const Divider(),
+                _buildSectionHeader(context, 'Developer Options'),
+                _buildSlider(
+                  context,
+                  'Base Font Size',
+                  settings.baseFontSize,
+                  10.0,
+                  32.0,
+                  (value) => provider
+                      .updateSettings(settings.copyWith(baseFontSize: value)),
+                ),
+                _buildSlider(
+                  context,
+                  'Base Padding',
+                  settings.basePadding,
+                  0.0,
+                  48.0,
+                  (value) => provider
+                      .updateSettings(settings.copyWith(basePadding: value)),
+                ),
+                _buildSlider(
+                  context,
+                  'Base Spacing',
+                  settings.baseSpacing,
+                  0.0,
+                  48.0,
+                  (value) => provider
+                      .updateSettings(settings.copyWith(baseSpacing: value)),
+                ),
+                _buildSlider(
+                  context,
+                  'Corner Radius',
+                  settings.cornerRadius,
+                  0.0,
+                  32.0,
+                  (value) => provider
+                      .updateSettings(settings.copyWith(cornerRadius: value)),
+                ),
+                const SizedBox(height: 16),
+                _SettingsSliderRow(
+                  label: 'Fuzzy Search Tolerance',
+                  value: settings.fuzzySearchTolerance.toDouble(),
+                  min: 0.0,
+                  max: 5.0,
+                  onChanged: (value) => provider.updateSettings(
+                      settings.copyWith(fuzzySearchTolerance: value.toInt())),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.upload),
+                  title: const Text('Export Settings'),
+                  subtitle: const Text('Copy settings JSON to clipboard'),
+                  onTap: () {
+                    final json = provider.exportSettings();
+                    Clipboard.setData(ClipboardData(text: json));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Settings copied to clipboard')),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.download),
+                  title: const Text('Import Settings'),
+                  subtitle: const Text('Paste settings JSON from clipboard'),
+                  onTap: () async {
+                    final data = await Clipboard.getData(Clipboard.kTextPlain);
+                    if (data?.text != null && context.mounted) {
+                      try {
+                        await provider.importSettings(data!.text!);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Settings imported')),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Invalid JSON: $e')),
+                          );
+                        }
                       }
                     }
-                  }
-                },
+                  },
+                ),
+              ],
+              const Divider(),
+              _buildSectionHeader(context, 'About'),
+              ListTile(
+                subtitle: Text(
+                    'Version: ${_packageInfo?.version ?? '...'}\nBuild Hash: ${BuildInfo.shortHash}\nBuild Time: ${BuildInfo.buildTime}'),
+                isThreeLine: true,
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Center(
+                  child: TextButton(
+                    onPressed: () {
+                      provider.updateSettings(
+                          settings.copyWith(isDeveloperMode: !isDev));
+                    },
+                    child: Text(isDev
+                        ? 'Disable Developer Mode'
+                        : 'Enable Developer Mode'),
+                  ),
+                ),
               ),
             ],
           );
@@ -427,7 +388,7 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           actions: <Widget>[
-            ElevatedButton(
+            FilledButton(
               child: const Text('Got it'),
               onPressed: () {
                 provider.updateSettings(
@@ -436,6 +397,9 @@ class SettingsScreen extends StatelessWidget {
                 );
                 Navigator.of(context).pop();
               },
+              style: FilledButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
             ),
           ],
         );
@@ -519,6 +483,122 @@ class SettingsScreen extends StatelessWidget {
       await launchUrl(uri);
     } else {
       debugPrint('Could not launch $uri');
+    }
+  }
+
+  Future<void> _handleExportData(BuildContext context) async {
+    try {
+      final backupService = context.read<BackupService>();
+      final backupPath = await backupService.createBackup();
+
+      // Platform-specific export logic
+      if (Platform.isAndroid || Platform.isIOS) {
+        await Share.shareXFiles([XFile(backupPath)]);
+      } else {
+        // Desktop: Prompt user to save the file
+        final fileName = path.basename(backupPath);
+        final saveLocation = await getSaveLocation(
+          suggestedName: fileName,
+          acceptedTypeGroups: [
+            const XTypeGroup(
+              label: 'Zip',
+              extensions: ['zip'],
+            ),
+          ],
+        );
+
+        if (saveLocation != null) {
+          final file = File(backupPath);
+          await file.copy(saveLocation.path);
+          // Cleanup temp file
+          await file.delete();
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Exported to ${saveLocation.path}')),
+            );
+          }
+        } else {
+          // User cancelled, cleanup
+          await File(backupPath).delete();
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleImportData(
+      BuildContext context, SettingsProvider provider) async {
+    const typeGroup = XTypeGroup(
+      label: 'Zip',
+      extensions: ['zip'],
+    );
+    final file = await openFile(acceptedTypeGroups: [typeGroup]);
+
+    if (file != null && context.mounted) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Confirm Import'),
+          content: const Text(
+            'This will overwrite all current data with the backup content. Are you sure?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Import'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true && context.mounted) {
+        try {
+          final backupService = context.read<BackupService>();
+          await backupService.restoreBackup(file.path);
+
+          // Reload settings
+          if (context.mounted) {
+            await provider.loadSettings();
+
+            if (!context.mounted) return;
+
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => AlertDialog(
+                title: const Text('Import Successful'),
+                content: const Text(
+                  'Data restored successfully. The app needs to restart to apply all changes.',
+                ),
+                actions: [
+                  FilledButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Import failed: $e')),
+            );
+          }
+        }
+      }
     }
   }
 }

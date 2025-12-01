@@ -16,10 +16,18 @@ import 'package:q_task/presentation/screens/home_screen.dart';
 import 'package:q_task/presentation/theme/app_theme.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:q_task/presentation/providers/auth_provider.dart';
 import 'firebase_options.dart';
 
 import 'dart:io';
+
+import 'package:q_task/data/services/firestore_service.dart';
+import 'package:q_task/data/repositories/sync_task_repository.dart';
+import 'package:q_task/data/repositories/sync_task_list_repository.dart';
+import 'package:q_task/data/services/settings_sync_service.dart';
+import 'package:q_task/data/services/storage_sync_service.dart';
+import 'package:q_task/data/services/history_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +36,7 @@ void main() async {
     await windowManager.ensureInitialized();
   }
 
+  // Initialize Firebase
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -35,6 +44,26 @@ void main() async {
   } catch (e) {
     debugPrint('Firebase initialization failed: $e');
     // Continue running the app even if Firebase fails (e.g. offline or no config)
+  }
+
+  // Activate App Check (only on supported platforms: mobile and web)
+  if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
+    try {
+      await FirebaseAppCheck.instance.activate(
+        // Default provider for Android is Play Integrity. For debug builds, we use debug provider.
+        androidProvider: AndroidProvider.debug,
+        // Default provider for iOS is DeviceCheck or AppAttest.
+        appleProvider: AppleProvider.appAttest,
+        // For web, we need a reCAPTCHA key.
+        webProvider: ReCaptchaV3Provider('recaptcha-v3-site-key'),
+      );
+      debugPrint('App Check activated successfully');
+    } catch (e) {
+      debugPrint('App Check activation failed: $e');
+      // App Check is not critical for development, continue without it
+    }
+  } else {
+    debugPrint('App Check skipped (not supported on desktop platforms)');
   }
 
   final packageInfo = await PackageInfo.fromPlatform();
@@ -68,13 +97,64 @@ class TaskApp extends StatelessWidget {
         ProxyProvider<SettingsProvider, StorageService>(
           update: (_, settingsProvider, __) => StorageService(settingsProvider),
         ),
+        Provider<FirestoreService>(
+          create: (_) => FirestoreService(),
+        ),
         ProxyProvider<StorageService, MarkdownTaskRepository>(
           update: (_, storageService, __) =>
               MarkdownTaskRepository(storageService),
         ),
+        Provider<StorageSyncService>(
+          create: (_) => StorageSyncService(),
+        ),
+        Provider<HistoryService>(
+          create: (_) => HistoryService(),
+        ),
+        ProxyProvider6<
+            MarkdownTaskRepository,
+            FirestoreService,
+            SettingsProvider,
+            StorageSyncService,
+            StorageService,
+            HistoryService,
+            SyncTaskRepository>(
+          update: (_,
+                  localRepo,
+                  firestoreService,
+                  settingsProvider,
+                  storageSyncService,
+                  storageService,
+                  historyService,
+                  previous) =>
+              previous ??
+              SyncTaskRepository(
+                localRepo,
+                firestoreService,
+                settingsProvider,
+                storageSyncService,
+                storageService,
+                historyService,
+              ),
+          dispose: (_, repo) => repo.dispose(),
+        ),
         ProxyProvider<StorageService, MarkdownTaskListRepository>(
           update: (_, storageService, __) =>
               MarkdownTaskListRepository(storageService),
+        ),
+        ProxyProvider3<MarkdownTaskListRepository, FirestoreService,
+            SettingsProvider, SyncTaskListRepository>(
+          update:
+              (_, localRepo, firestoreService, settingsProvider, previous) =>
+                  previous ??
+                  SyncTaskListRepository(
+                      localRepo, firestoreService, settingsProvider),
+          dispose: (_, repo) => repo.dispose(),
+        ),
+        ProxyProvider2<SettingsProvider, FirestoreService, SettingsSyncService>(
+          update: (_, settingsProvider, firestoreService, previous) =>
+              previous ??
+              SettingsSyncService(settingsProvider, firestoreService),
+          dispose: (_, service) => service.dispose(),
         ),
         ProxyProvider<StorageService, AttachmentService>(
           update: (_, storageService, __) => AttachmentService(storageService),
@@ -82,32 +162,42 @@ class TaskApp extends StatelessWidget {
         ProxyProvider<StorageService, BackupService>(
           update: (_, storageService, __) => BackupService(storageService),
         ),
-        ChangeNotifierProxyProvider2<MarkdownTaskRepository, AttachmentService,
-            TaskProvider>(
-          create: (_) => TaskProvider(
-            taskRepository:
-                MarkdownTaskRepository(StorageService(SettingsProvider())),
-            taskService: TaskService(),
-          ),
-          update: (_, taskRepo, attachmentService, previous) {
+        ChangeNotifierProxyProvider3<SyncTaskRepository, AttachmentService,
+            SettingsProvider, TaskProvider>(
+          create: (context) {
+            final syncRepo =
+                Provider.of<SyncTaskRepository>(context, listen: false);
+            final settingsProvider =
+                Provider.of<SettingsProvider>(context, listen: false);
+            return TaskProvider(
+              taskRepository: syncRepo,
+              taskService: TaskService(),
+              settingsProvider: settingsProvider,
+            );
+          },
+          update: (_, taskRepo, attachmentService, settingsProvider, previous) {
             final provider = previous ??
                 TaskProvider(
                   taskRepository: taskRepo,
                   taskService: TaskService(),
+                  settingsProvider: settingsProvider,
                 );
             provider.updateDependencies(
               taskRepository: taskRepo,
               taskService: TaskService(),
+              settingsProvider: settingsProvider,
             );
             return provider;
           },
         ),
-        ChangeNotifierProxyProvider<MarkdownTaskListRepository,
-            TaskListProvider>(
-          create: (_) => TaskListProvider(
-            taskListRepository:
-                MarkdownTaskListRepository(StorageService(SettingsProvider())),
-          ),
+        ChangeNotifierProxyProvider<SyncTaskListRepository, TaskListProvider>(
+          create: (context) {
+            final syncRepo =
+                Provider.of<SyncTaskListRepository>(context, listen: false);
+            return TaskListProvider(
+              taskListRepository: syncRepo,
+            );
+          },
           update: (_, taskListRepo, previous) {
             final provider = previous ??
                 TaskListProvider(

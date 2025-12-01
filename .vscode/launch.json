@@ -7,19 +7,24 @@
         {
             "name": "task_app",
             "request": "launch",
-            "type": "dart"
+            "type": "dart",
+            "preLaunchTask": "Generate Build Hash"
         },
         {
             "name": "task_app (profile mode)",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "profile"
+            "flutterMode": "profile",
+            "deviceId": "windows",
+            "preLaunchTask": "Generate Build Hash"
         },
         {
             "name": "task_app (release mode)",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "release"
+            "flutterMode": "release",
+            "deviceId": "windows",
+            "preLaunchTask": "Generate Build Hash"
         },
         {
             "name": ".third_party",

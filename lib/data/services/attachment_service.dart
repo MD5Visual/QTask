@@ -13,7 +13,7 @@ class AttachmentService {
     final taskAttachmentsDir =
         Directory(path.join(rootDir.path, 'task_attachments', taskId));
 
-    if (!await taskAttachmentsDir.exists()) {
+    if (!taskAttachmentsDir.existsSync()) {
       await taskAttachmentsDir.create(recursive: true);
     }
 

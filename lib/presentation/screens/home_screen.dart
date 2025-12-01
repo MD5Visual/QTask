@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:q_task/domain/models/task.dart';
@@ -13,6 +14,7 @@ import 'package:q_task/presentation/widgets/task_card.dart';
 import 'package:q_task/presentation/widgets/completion_status_button.dart';
 import 'package:q_task/presentation/widgets/sort_controls.dart';
 import 'package:q_task/presentation/widgets/app_drawer.dart';
+import 'package:q_task/presentation/widgets/sync_status_indicator.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,10 +25,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   Timer? _initTimer;
+  final ScrollController _scrollController = ScrollController();
+  final ValueNotifier<bool> _isSearchBarVisible = ValueNotifier(true);
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _initTimer = Timer(Duration.zero, () async {
       if (!mounted) return;
       try {
@@ -38,6 +43,16 @@ class _HomeScreenState extends State<HomeScreen> {
         debugPrint('Error initializing providers: $e');
       }
     });
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final direction = _scrollController.position.userScrollDirection;
+    if (direction == ScrollDirection.reverse) {
+      if (_isSearchBarVisible.value) _isSearchBarVisible.value = false;
+    } else if (direction == ScrollDirection.forward) {
+      if (!_isSearchBarVisible.value) _isSearchBarVisible.value = true;
+    }
   }
 
   TaskListProvider? _listProvider;
@@ -81,6 +96,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _initTimer?.cancel();
     _listProvider?.removeListener(_scheduleHiddenSync);
+    _scrollController.dispose();
+    _isSearchBarVisible.dispose();
     super.dispose();
   }
 
@@ -132,6 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             elevation: 0,
             actions: [
+              const SyncStatusIndicator(),
               Consumer<TaskProvider>(
                 builder: (context, taskProvider, _) => Row(
                   mainAxisSize: MainAxisSize.min,
@@ -194,111 +212,131 @@ class _HomeScreenState extends State<HomeScreen> {
 
               return Column(
                 children: [
-                  // Search field
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: TextField(
-                      onChanged: (query) => taskProvider.setSearchQuery(
-                        query,
-                        settingsProvider.settings.fuzzySearchTolerance,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Search tasks...',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: taskProvider.currentFilter.searchQuery !=
-                                    null &&
-                                taskProvider
-                                    .currentFilter.searchQuery!.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () => taskProvider.setSearchQuery(
-                                  '',
-                                  settingsProvider
-                                      .settings.fuzzySearchTolerance,
+                  // Search field with animation
+                  ValueListenableBuilder<bool>(
+                    valueListenable: _isSearchBarVisible,
+                    builder: (context, isVisible, child) {
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        height: isVisible ? 70 : 0,
+                        child: SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            child: TextField(
+                              onChanged: (query) => taskProvider.setSearchQuery(
+                                query,
+                                settingsProvider.settings.fuzzySearchTolerance,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Search tasks...',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon:
+                                    taskProvider.currentFilter.searchQuery !=
+                                                null &&
+                                            taskProvider.currentFilter
+                                                .searchQuery!.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(Icons.clear),
+                                            onPressed: () =>
+                                                taskProvider.setSearchQuery(
+                                              '',
+                                              settingsProvider.settings
+                                                  .fuzzySearchTolerance,
+                                            ),
+                                          )
+                                        : null,
+                                filled: true,
+                                fillColor: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide.none,
                                 ),
-                              )
-                            : null,
-                        filled: true,
-                        fillColor: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                   // Task list
                   Expanded(
-                    child: ReorderableListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 8),
-                      buildDefaultDragHandles: false,
-                      onReorder: (oldIndex, newIndex) {
-                        taskProvider.reorderTasks(oldIndex, newIndex);
+                    child: RefreshIndicator(
+                      onRefresh: () async {
+                        taskProvider.syncListMetadata(listProvider.lists);
                       },
-                      proxyDecorator: (child, index, animation) {
-                        return MouseRegion(
-                          cursor: SystemMouseCursors.grabbing,
-                          child: child,
-                        );
-                      },
-                      itemCount: taskProvider.tasks.length,
-                      itemBuilder: (context, index) {
-                        final task = taskProvider.tasks[index];
-                        final card = TaskCard(
-                          key: Key(task.id),
-                          task: task,
-                          index: index,
-                          onToggleComplete: () {
-                            taskProvider.toggleTaskCompletion(task.id);
-                          },
-                          onDelete: () {
-                            taskProvider.deleteTask(task.id);
-                          },
-                          onUpdate: (updatedTask) {
-                            taskProvider.updateTask(updatedTask);
-                          },
-                          availableLists: listProvider.lists,
-                        );
-
-                        if (Platform.isAndroid) {
-                          return Dismissible(
-                            key: Key(task.id),
-                            direction: DismissDirection.startToEnd,
-                            background: Container(
-                              color: Theme.of(context).colorScheme.error,
-                              alignment: Alignment.centerLeft,
-                              padding: const EdgeInsets.only(left: 16),
-                              child: Icon(
-                                Icons.delete,
-                                color: Theme.of(context).colorScheme.onError,
-                              ),
-                            ),
-                            onDismissed: (direction) {
-                              taskProvider.deleteTask(task.id);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: const Text('Task deleted'),
-                                  duration: const Duration(seconds: 30),
-                                  showCloseIcon: true,
-                                  action: SnackBarAction(
-                                    label: 'Undo',
-                                    onPressed: () {
-                                      taskProvider.addTask(task);
-                                    },
-                                  ),
-                                ),
-                              );
-                            },
-                            child: card,
+                      child: ReorderableListView.builder(
+                        scrollController: _scrollController,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 8),
+                        buildDefaultDragHandles: false,
+                        onReorder: (oldIndex, newIndex) {
+                          taskProvider.reorderTasks(oldIndex, newIndex);
+                        },
+                        proxyDecorator: (child, index, animation) {
+                          return MouseRegion(
+                            cursor: SystemMouseCursors.grabbing,
+                            child: child,
                           );
-                        }
+                        },
+                        itemCount: taskProvider.tasks.length,
+                        itemBuilder: (context, index) {
+                          final task = taskProvider.tasks[index];
+                          final card = TaskCard(
+                            key: Key(task.id),
+                            task: task,
+                            index: index,
+                            onToggleComplete: () {
+                              taskProvider.toggleTaskCompletion(task.id);
+                            },
+                            onDelete: () {
+                              taskProvider.deleteTask(task.id);
+                            },
+                            onUpdate: (updatedTask) {
+                              taskProvider.updateTask(updatedTask);
+                            },
+                            availableLists: listProvider.lists,
+                          );
 
-                        return card;
-                      },
+                          if (Platform.isAndroid) {
+                            return Dismissible(
+                              key: Key(task.id),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                color: Theme.of(context).colorScheme.error,
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 16),
+                                child: Icon(
+                                  Icons.delete,
+                                  color: Theme.of(context).colorScheme.onError,
+                                ),
+                              ),
+                              onDismissed: (direction) {
+                                taskProvider.deleteTask(task.id);
+                                ScaffoldMessenger.of(context).clearSnackBars();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: const Text('Task deleted'),
+                                    duration: const Duration(seconds: 5),
+                                    showCloseIcon: true,
+                                    action: SnackBarAction(
+                                      label: 'Undo',
+                                      onPressed: () {
+                                        taskProvider.addTask(task);
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: card,
+                            );
+                          }
+
+                          return card;
+                        },
+                      ),
                     ),
                   ),
                 ],
@@ -307,11 +345,17 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           bottomNavigationBar: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: ElevatedButton.icon(
-                onPressed: _createNewTask,
-                icon: const Icon(Icons.add),
-                label: const Text('Add a task'),
+              padding: const EdgeInsets.all(8.0),
+              child: Tooltip(
+                message: 'Press Enter to add task',
+                child: FilledButton.icon(
+                  onPressed: _createNewTask,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Task'),
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
               ),
             ),
           ),

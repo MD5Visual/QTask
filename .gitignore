@@ -57,3 +57,10 @@ windows/flutter/ephemeral/
 
 # OAuth credentials (local only)
 assets/oauth_config.json
+
+# Generated build info
+lib/generated/build_info.dart
+
+
+# Documentation Plans
+docs/plans/

@@ -13,6 +13,8 @@ import 'package:q_task/domain/models/task.dart';
 import 'package:q_task/domain/models/task_list.dart';
 import 'package:q_task/presentation/theme/outline_styles.dart';
 import 'package:q_task/presentation/services/hunspell_spell_check_service.dart';
+import 'package:q_task/data/services/history_service.dart';
+import 'package:q_task/domain/models/history_item.dart';
 
 class RichTaskDetailScreen extends StatefulWidget {
   final Task? task;
@@ -40,8 +42,12 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
     _titleController = TextEditingController(text: widget.task?.title ?? '');
 
     final markdown = widget.task?.description ?? '';
-    var delta =
-        MarkdownToDelta(markdownDocument: md.Document()).convert(markdown);
+    var delta = MarkdownToDelta(
+      markdownDocument: md.Document(
+        extensionSet: md.ExtensionSet.gitHubFlavored,
+        encodeHtml: false,
+      ),
+    ).convert(markdown);
     if (delta.isEmpty) {
       delta = quill.Document().toDelta();
     }
@@ -99,12 +105,21 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
     final delta = _quillController.document.toDelta();
     final markdown = DeltaToMarkdown().convert(delta);
 
+    // Extract image paths from delta
+    final attachedFiles = <String>[];
+    for (final op in delta.toList()) {
+      if (op.data is Map && (op.data as Map).containsKey('image')) {
+        final imagePath = (op.data as Map)['image'] as String;
+        attachedFiles.add(imagePath);
+      }
+    }
+
     final updatedTask = Task(
       id: widget.task?.id,
       title: _titleController.text,
       description: markdown,
       tags: widget.task?.tags ?? [],
-      attachedFiles: widget.task?.attachedFiles ?? [],
+      attachedFiles: attachedFiles,
       dueDate: _dueDate,
       createdAt: widget.task?.createdAt,
       completedAt: widget.task?.completedAt,
@@ -125,22 +140,47 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
 
     for (final file in files) {
       final ext = file.name.split('.').last.toLowerCase();
-      if (['png', 'jpg', 'jpeg', 'gif', 'webp'].contains(ext)) {
-        final savedPath = await attachmentService.saveAttachment(taskId, file);
 
-        final index = _quillController.selection.baseOffset;
-        final length = _quillController.selection.extentOffset - index;
-
-        _quillController.replaceText(
-          index,
-          length,
-          quill.BlockEmbed.image(savedPath),
-          null,
-        );
-
-        // Move cursor after image
-        _quillController.moveCursorToPosition(index + 1);
+      // 1. Block GIFs explicitly
+      if (ext == 'gif') {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('GIFs are not supported yet: ${file.name}')),
+          );
+        }
+        continue;
       }
+
+      // 2. Check supported types
+      if (!['png', 'jpg', 'jpeg', 'webp'].contains(ext)) {
+        continue;
+      }
+
+      // 3. Check file size (10MB limit)
+      final size = await file.length();
+      if (size > 10 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('File too large (max 10MB): ${file.name}')),
+          );
+        }
+        continue;
+      }
+
+      final savedPath = await attachmentService.saveAttachment(taskId, file);
+
+      final index = _quillController.selection.baseOffset;
+      final length = _quillController.selection.extentOffset - index;
+
+      _quillController.replaceText(
+        index,
+        length,
+        quill.BlockEmbed.image(savedPath),
+        null,
+      );
+
+      // Move cursor after image
+      _quillController.moveCursorToPosition(index + 1);
     }
   }
 
@@ -148,15 +188,6 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
   Widget build(BuildContext context) {
     final existingTask = widget.task;
     final dateFormatter = DateFormat.yMMMd().add_jm();
-    final historyEntries = <_HistoryEntry>[];
-    if (existingTask != null) {
-      historyEntries.add(_HistoryEntry('Created', existingTask.createdAt));
-      if (existingTask.completedAt != null) {
-        historyEntries
-            .add(_HistoryEntry('Checked off', existingTask.completedAt!));
-      }
-      historyEntries.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -168,9 +199,13 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
           padding: const EdgeInsets.all(16.0),
           child: SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
+            child: FilledButton.icon(
               onPressed: _saveTask,
-              child: const Text('Save Task'),
+              icon: const Icon(Icons.save),
+              label: const Text('Save Task'),
+              style: FilledButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
             ),
           ),
         ),
@@ -292,35 +327,82 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
-                if (historyEntries.isEmpty)
-                  Text(
-                    'No recorded changes yet',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  )
-                else
-                  ...historyEntries.map((entry) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            entry.label,
-                            style: Theme.of(context).textTheme.bodyMedium,
+                StreamBuilder<List<HistoryItem>>(
+                  stream: context
+                      .read<HistoryService>()
+                      .getHistoryStream(existingTask.id),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Text('Error loading history: ${snapshot.error}');
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final items = snapshot.data!;
+                    if (items.isEmpty) {
+                      return Text(
+                        'No recorded changes yet',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      );
+                    }
+
+                    return Column(
+                      children: items.map((item) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _getHistoryActionLabel(item),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    dateFormatter
+                                        .format(item.timestamp.toLocal()),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .outline,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                              if (item.changes.isNotEmpty)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.only(left: 8.0, top: 2),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: item.changes.entries.map((e) {
+                                      return Text(
+                                        '• ${e.key}: ${_formatChangeValue(e.value)}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                            ],
                           ),
-                          Text(
-                            dateFormatter.format(entry.timestamp.toLocal()),
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(
-                                    color:
-                                        Theme.of(context).colorScheme.outline),
-                          ),
-                        ],
-                      ),
+                        );
+                      }).toList(),
                     );
-                  }),
+                  },
+                ),
               ],
             ],
           ),
@@ -328,11 +410,22 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
       ),
     );
   }
-}
 
-class _HistoryEntry {
-  final String label;
-  final DateTime timestamp;
+  String _getHistoryActionLabel(HistoryItem item) {
+    switch (item.action) {
+      case HistoryAction.create:
+        return 'Task Created';
+      case HistoryAction.update:
+        return 'Task Updated';
+      case HistoryAction.delete:
+        return 'Task Deleted';
+    }
+  }
 
-  _HistoryEntry(this.label, this.timestamp);
+  String _formatChangeValue(dynamic value) {
+    if (value is Map && value.containsKey('old') && value.containsKey('new')) {
+      return '${value['old']} -> ${value['new']}';
+    }
+    return value.toString();
+  }
 }
