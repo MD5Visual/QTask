@@ -1,103 +1,30 @@
-import 'dart:convert';
-import 'dart:io';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
-import 'package:google_sign_in_all_platforms/google_sign_in_all_platforms.dart';
 
 class AuthProvider extends ChangeNotifier {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  late final GoogleSignIn _googleSignIn;
+  // Local-only version: User is always "null" or we could simulate a local user if needed.
+  // For now, we'll just say not authenticated to hide any cloud UI.
 
-  User? _user;
-  User? get user => _user;
+  // Actually, if we want to hide the cloud UI, isAuthenticated being false is fine.
+  // But if the app relies on a user object for something else, we might need to check.
+  // Based on SettingsScreen, it uses it to show profile info.
 
-  bool get isAuthenticated => _user != null;
+  // We will expose a dummy user getter if needed, but for now null is safer to ensure no cloud calls.
+
+  bool get isAuthenticated => false;
+
+  // Dummy user object if needed, but we removed the class import so we can't return User.
+  // We'll just return dynamic or nothing.
+  get user => null;
 
   AuthProvider() {
-    _initializeGoogleSignIn();
-
-    _auth.authStateChanges().listen((User? user) {
-      _user = user;
-      notifyListeners();
-    });
+    // No initialization needed
   }
 
-  Future<void> _initializeGoogleSignIn() async {
-    // Check if we're on web first, as Platform.isWindows won't work on web
-    if (kIsWeb) {
-      // For web, we don't use google_sign_in_all_platforms at all
-      // We'll handle web separately in signInWithGoogle
-      _googleSignIn = GoogleSignIn(params: const GoogleSignInParams());
-    } else {
-      String? clientId;
-      String? clientSecret;
-
-      // Load OAuth credentials for desktop platforms
-      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-        try {
-          // Try to load from assets
-          final configString =
-              await rootBundle.loadString('assets/oauth_config.json');
-          final configJson = jsonDecode(configString);
-          clientId = configJson['web_client_id'];
-          clientSecret = configJson['web_client_secret'];
-        } catch (e) {
-          debugPrint(
-              'WARNING: assets/oauth_config.json not found or invalid. Create it from oauth_config.json.example. Error: $e');
-        }
-      }
-
-      _googleSignIn = GoogleSignIn(
-        params: GoogleSignInParams(
-          clientId: clientId,
-          clientSecret: clientSecret,
-        ),
-      );
-    }
-  }
-
-  Future<UserCredential?> signInWithGoogle() async {
-    try {
-      // Handle web separately
-      if (kIsWeb) {
-        GoogleAuthProvider authProvider = GoogleAuthProvider();
-        return await _auth.signInWithPopup(authProvider);
-      }
-
-      // Use google_sign_in_all_platforms API (works on all platforms)
-      // Force a fresh sign-in by signing out first
-      await _googleSignIn.signOut();
-      final GoogleSignInCredentials? credentials = await _googleSignIn.signIn();
-
-      if (credentials == null) {
-        // User canceled the sign-in
-        return null;
-      }
-
-      // Create Firebase credential from Google credentials
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: credentials.accessToken,
-        idToken: credentials.idToken,
-      );
-
-      // Sign in to Firebase with the Google credential
-      return await _auth.signInWithCredential(credential);
-    } catch (e) {
-      debugPrint('Error signing in with Google: $e');
-      rethrow;
-    }
+  Future<void> signInWithGoogle() async {
+    debugPrint('Cloud sync is disabled in this version.');
   }
 
   Future<void> signOut() async {
-    try {
-      if (!kIsWeb) {
-        await _googleSignIn.signOut();
-      }
-      await _auth.signOut();
-    } catch (e) {
-      debugPrint('Error signing out: $e');
-      rethrow;
-    }
+    // No-op
   }
 }

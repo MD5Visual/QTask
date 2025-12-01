@@ -13,8 +13,6 @@ import 'package:q_task/domain/models/task.dart';
 import 'package:q_task/domain/models/task_list.dart';
 import 'package:q_task/presentation/theme/outline_styles.dart';
 import 'package:q_task/presentation/services/hunspell_spell_check_service.dart';
-import 'package:q_task/data/services/history_service.dart';
-import 'package:q_task/domain/models/history_item.dart';
 
 class RichTaskDetailScreen extends StatefulWidget {
   final Task? task;
@@ -35,6 +33,7 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
   List<TaskList> _availableLists = [];
   DateTime? _dueDate;
   final FocusNode _editorFocusNode = FocusNode();
+  bool _isToolbarVisible = false;
 
   @override
   void initState() {
@@ -135,13 +134,10 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
     final attachmentService = context.read<AttachmentService>();
     final taskId =
         widget.task?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
-    // Note: If it's a new task, we might be saving attachments to a temp ID.
-    // Real implementation should handle this better, but for now we use a generated ID.
 
     for (final file in files) {
       final ext = file.name.split('.').last.toLowerCase();
 
-      // 1. Block GIFs explicitly
       if (ext == 'gif') {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -151,12 +147,10 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
         continue;
       }
 
-      // 2. Check supported types
       if (!['png', 'jpg', 'jpeg', 'webp'].contains(ext)) {
         continue;
       }
 
-      // 3. Check file size (10MB limit)
       final size = await file.length();
       if (size > 10 * 1024 * 1024) {
         if (mounted) {
@@ -179,16 +173,57 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
         null,
       );
 
-      // Move cursor after image
       _quillController.moveCursorToPosition(index + 1);
     }
   }
 
+  void _showListSelectionDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Select Lists'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView(
+                  shrinkWrap: true,
+                  children: _availableLists.map((list) {
+                    final isSelected = _selectedListIds.contains(list.id);
+                    return CheckboxListTile(
+                      title: Text(list.name),
+                      value: isSelected,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          if (value == true) {
+                            _selectedListIds.add(list.id);
+                          } else {
+                            _selectedListIds.remove(list.id);
+                          }
+                        });
+                        // Update the parent state as well so the UI reflects changes immediately
+                        this.setState(() {});
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Done'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final existingTask = widget.task;
-    final dateFormatter = DateFormat.yMMMd().add_jm();
-
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.task == null ? 'New Task' : 'Edit Task'),
@@ -210,200 +245,43 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
           ),
         ),
       ),
-      body: DropTarget(
-        onDragDone: (detail) => _handleDrop(detail.files),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+      body: DefaultTabController(
+        length: 1,
+        child: DropTarget(
+          onDragDone: (detail) => _handleDrop(detail.files),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title
-              TextField(
-                controller: _titleController,
-                autofocus: widget.task == null,
-                decoration: InputDecoration(
-                  labelText: 'Task Title',
-                  hintText: 'Enter task title',
-                  border: OutlineStyles.inputBorder(),
-                ),
-                style: Theme.of(context).textTheme.titleLarge,
-                spellCheckConfiguration: hunspellSpellCheckConfiguration,
-                contextMenuBuilder: spellCheckContextMenuBuilder,
-              ),
-              const SizedBox(height: 16),
-
-              // Rich Text Description
-              Text('Description',
-                  style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  border:
-                      Border.all(color: Theme.of(context).colorScheme.outline),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Column(
-                  children: [
-                    quill.QuillSimpleToolbar(
-                      controller: _quillController,
-                      config: const quill.QuillSimpleToolbarConfig(
-                        showFontFamily: false,
-                        showFontSize: false,
-                        showSearchButton: false,
-                        showSubscript: false,
-                        showSuperscript: false,
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    SizedBox(
-                      height: 300, // Fixed height for editor
-                      child: quill.QuillEditor.basic(
-                        controller: _quillController,
-                        focusNode: _editorFocusNode,
-                        config: quill.QuillEditorConfig(
-                          padding: const EdgeInsets.all(8),
-                          placeholder: 'Enter task description...',
-                          embedBuilders: FlutterQuillEmbeds.editorBuilders(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Due Date
-              ListTile(
-                title: const Text('Due Date'),
-                subtitle: Text(_dueDate == null
-                    ? 'No due date'
-                    : '${_dueDate!.toLocal()}'.split(' ')[0]),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: _pickDueDate,
-              ),
-              const SizedBox(height: 16),
-
-              // Lists Selection
-              Text(
-                'Add to Lists',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              if (_availableLists.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: Text(
-                    'No lists created yet',
-                    style: Theme.of(context).textTheme.bodySmall,
+              // Title Section (Always visible)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: TextField(
+                  controller: _titleController,
+                  autofocus: widget.task == null,
+                  decoration: InputDecoration(
+                    labelText: 'Task Title',
+                    hintText: 'Enter task title',
+                    border: OutlineStyles.inputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                   ),
-                )
-              else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _availableLists.map((list) {
-                    final isSelected = _selectedListIds.contains(list.id);
-                    return FilterChip(
-                      label: Text(list.name),
-                      selected: isSelected,
-                      onSelected: (selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedListIds.add(list.id);
-                          } else {
-                            _selectedListIds.remove(list.id);
-                          }
-                        });
-                      },
-                    );
-                  }).toList(),
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _saveTask(),
+                  spellCheckConfiguration: hunspellSpellCheckConfiguration,
+                  contextMenuBuilder: spellCheckContextMenuBuilder,
                 ),
-              const SizedBox(height: 32),
+              ),
 
-              if (existingTask != null) ...[
-                const SizedBox(height: 24),
-                Text(
-                  'History',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                StreamBuilder<List<HistoryItem>>(
-                  stream: context
-                      .read<HistoryService>()
-                      .getHistoryStream(existingTask.id),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return Text('Error loading history: ${snapshot.error}');
-                    }
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+              // const TabBar(
+              //   tabs: [
+              //     Tab(text: 'Details'),
+              //     Tab(text: 'History'),
+              //   ],
+              // ),
 
-                    final items = snapshot.data!;
-                    if (items.isEmpty) {
-                      return Text(
-                        'No recorded changes yet',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      );
-                    }
-
-                    return Column(
-                      children: items.map((item) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    _getHistoryActionLabel(item),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  Text(
-                                    dateFormatter
-                                        .format(item.timestamp.toLocal()),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.copyWith(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .outline,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                              if (item.changes.isNotEmpty)
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.only(left: 8.0, top: 2),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: item.changes.entries.map((e) {
-                                      return Text(
-                                        '• ${e.key}: ${_formatChangeValue(e.value)}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall,
-                                      );
-                                    }).toList(),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
-              ],
+              Expanded(
+                child: _buildDetailsTab(),
+              ),
             ],
           ),
         ),
@@ -411,21 +289,197 @@ class _RichTaskDetailScreenState extends State<RichTaskDetailScreen> {
     );
   }
 
-  String _getHistoryActionLabel(HistoryItem item) {
-    switch (item.action) {
-      case HistoryAction.create:
-        return 'Task Created';
-      case HistoryAction.update:
-        return 'Task Updated';
-      case HistoryAction.delete:
-        return 'Task Deleted';
-    }
-  }
+  Widget _buildDetailsTab() {
+    return Column(
+      children: [
+        // Meta Row: Due Date & Lists
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).dividerColor.withOpacity(0.1),
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Due Date
+              InkWell(
+                onTap: _pickDueDate,
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.calendar_today,
+                        size: 16,
+                        color: _dueDate != null
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).iconTheme.color,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _dueDate == null
+                            ? 'Due Date'
+                            : DateFormat.yMMMd().format(_dueDate!),
+                        style: TextStyle(
+                          color: _dueDate != null
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).textTheme.bodyMedium?.color,
+                          fontWeight: _dueDate != null
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
-  String _formatChangeValue(dynamic value) {
-    if (value is Map && value.containsKey('old') && value.containsKey('new')) {
-      return '${value['old']} -> ${value['new']}';
-    }
-    return value.toString();
+              const SizedBox(width: 16),
+              Container(
+                height: 24,
+                width: 1,
+                color: Theme.of(context).dividerColor,
+              ),
+              const SizedBox(width: 16),
+
+              // Lists
+              Expanded(
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline),
+                      onPressed: _showListSelectionDialog,
+                      tooltip: 'Add to List',
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            ..._availableLists
+                                .where((l) => _selectedListIds.contains(l.id))
+                                .map((list) => Padding(
+                                      padding:
+                                          const EdgeInsets.only(right: 8.0),
+                                      child: Chip(
+                                        label: Text(list.name),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4, vertical: 2),
+                                        backgroundColor: Color(
+                                          int.parse(
+                                            '0xFF${list.color.replaceFirst('#', '')}',
+                                          ),
+                                        ),
+                                        labelStyle: TextStyle(
+                                          color: Color(int.parse(
+                                                          '0xFF${list.color.replaceFirst('#', '')}'))
+                                                      .computeLuminance() >
+                                                  0.5
+                                              ? Colors.black
+                                              : Colors.white,
+                                        ),
+                                        visualDensity: VisualDensity.compact,
+                                        materialTapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                        deleteIconColor: Color(int.parse(
+                                                        '0xFF${list.color.replaceFirst('#', '')}'))
+                                                    .computeLuminance() >
+                                                0.5
+                                            ? Colors.black
+                                            : Colors.white,
+                                        onDeleted: () {
+                                          setState(() {
+                                            _selectedListIds.remove(list.id);
+                                          });
+                                        },
+                                      ),
+                                    ))
+                                .toList(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Toolbar Toggle
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Description',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              IconButton(
+                icon: Icon(
+                  _isToolbarVisible ? Icons.expand_less : Icons.expand_more,
+                  size: 20,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isToolbarVisible = !_isToolbarVisible;
+                  });
+                },
+                tooltip: _isToolbarVisible ? 'Hide Toolbar' : 'Show Toolbar',
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ),
+
+        // Toolbar
+        if (_isToolbarVisible)
+          Container(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).dividerColor,
+                ),
+              ),
+            ),
+            child: quill.QuillSimpleToolbar(
+              controller: _quillController,
+              config: const quill.QuillSimpleToolbarConfig(
+                showFontFamily: false,
+                showFontSize: false,
+                showSearchButton: false,
+                showSubscript: false,
+                showSuperscript: false,
+                toolbarIconAlignment: WrapAlignment.start,
+              ),
+            ),
+          ),
+
+        // Editor
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: quill.QuillEditor.basic(
+              controller: _quillController,
+              focusNode: _editorFocusNode,
+              config: quill.QuillEditorConfig(
+                padding: const EdgeInsets.all(8),
+                placeholder: 'Enter task description...',
+                embedBuilders: FlutterQuillEmbeds.editorBuilders(),
+                autoFocus: false,
+                expands: true, // Important for taking up space
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

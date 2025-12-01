@@ -14,7 +14,6 @@ import 'package:q_task/presentation/widgets/task_card.dart';
 import 'package:q_task/presentation/widgets/completion_status_button.dart';
 import 'package:q_task/presentation/widgets/sort_controls.dart';
 import 'package:q_task/presentation/widgets/app_drawer.dart';
-import 'package:q_task/presentation/widgets/sync_status_indicator.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -149,7 +148,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             elevation: 0,
             actions: [
-              const SyncStatusIndicator(),
+              // const SyncStatusIndicator(), // Removed for local-only version
+
               Consumer<TaskProvider>(
                 builder: (context, taskProvider, _) => Row(
                   mainAxisSize: MainAxisSize.min,
