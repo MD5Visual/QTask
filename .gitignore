@@ -64,3 +64,6 @@ lib/generated/build_info.dart
 
 # Documentation Plans
 docs/plans/
+
+# Cloud Sync Guide
+docs/
