@@ -31,10 +31,10 @@ You can download the latest version of QTask for your platform from our [GitHub 
 2. Extract the ZIP file to a folder of your choice.
 3. Run `q_task.exe` to start the app.
 
-#### macOS
-1. Download the `qtask-macos-arm64.zip` file.
-2. Extract the ZIP file.
-3. Drag `QTask.app` to your Applications folder.
+#### Android
+1. Download the `qtask-android.apk` file.
+2. Locate the downloaded APK file on your device.
+3. Tap the APK file to install the app. You may need to enable "Install unknown apps" from your device settings for your browser or file manager.
 4. Open the app.
 
 ## 💻 Development & Contributing
