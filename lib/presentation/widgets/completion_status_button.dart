@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 enum CompletionStatus {
-  all,
   incomplete,
   completed,
+  all,
 }
 
 extension CompletionStatusLabel on CompletionStatus {

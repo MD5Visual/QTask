@@ -5,6 +5,7 @@ import 'package:q_task/presentation/providers/task_list_provider.dart';
 import 'package:q_task/presentation/providers/task_provider.dart';
 import 'package:q_task/presentation/screens/list_detail_screen.dart';
 import 'package:q_task/presentation/screens/settings_screen.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -58,17 +59,32 @@ class AppDrawer extends StatelessWidget {
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.primary,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  'My Tasks',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                      ),
-                ),
-              ],
+            margin: EdgeInsets.zero,
+            padding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: double.infinity,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  SvgPicture.asset(
+                    'assets/logo.svg',
+                    height: 48,
+                    colorFilter: ColorFilter.mode(
+                      Theme.of(context).colorScheme.onPrimary,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'My QTasks',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: const Color.fromARGB(255, 0, 0, 0),
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ],
+              ),
             ),
           ),
           Expanded(
@@ -76,6 +92,7 @@ class AppDrawer extends StatelessWidget {
               builder: (context, listProvider, taskProvider, _) {
                 final lists = listProvider.lists;
                 return ListView(
+                  padding: EdgeInsets.zero,
                   children: [
                     ListTile(
                       leading: const Icon(Icons.inbox),
@@ -86,19 +103,6 @@ class AppDrawer extends StatelessWidget {
                       onTap: () {
                         taskProvider.clearListSelection();
                         Navigator.pop(context);
-                      },
-                    ),
-                    const Divider(),
-                    ListTile(
-                      leading: const Icon(Icons.settings),
-                      title: const Text('Settings & Debug'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const SettingsScreen(),
-                          ),
-                        );
                       },
                     ),
                     const Divider(),
@@ -125,14 +129,33 @@ class AppDrawer extends StatelessWidget {
               },
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _createNewList(context),
-                icon: const Icon(Icons.add),
-                label: const Text('New List'),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Settings'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ),
+              );
+            },
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _createNewList(context),
+                  icon: const Icon(Icons.add),
+                  label: const Text('New List'),
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
               ),
             ),
           ),

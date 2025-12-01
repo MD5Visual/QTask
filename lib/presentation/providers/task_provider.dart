@@ -1,15 +1,18 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:q_task/domain/models/task.dart';
 import 'package:q_task/domain/models/task_filter.dart';
 import 'package:q_task/domain/models/task_list.dart';
 import 'package:q_task/domain/models/task_sort.dart';
 import 'package:q_task/domain/repositories/i_repository.dart';
+import 'package:q_task/presentation/providers/settings_provider.dart';
 
 class TaskProvider extends ChangeNotifier {
   static const String unlistedTasksId = '__unlisted__';
 
   ITaskRepository _taskRepository;
   ITaskService _taskService;
+  SettingsProvider _settingsProvider;
 
   List<Task> _allTasks = [];
   List<Task> _filteredTasks = [];
@@ -24,15 +27,19 @@ class TaskProvider extends ChangeNotifier {
   TaskProvider({
     required ITaskRepository taskRepository,
     required ITaskService taskService,
+    required SettingsProvider settingsProvider,
   })  : _taskRepository = taskRepository,
-        _taskService = taskService;
+        _taskService = taskService,
+        _settingsProvider = settingsProvider;
 
   void updateDependencies({
     required ITaskRepository taskRepository,
     required ITaskService taskService,
+    required SettingsProvider settingsProvider,
   }) {
     _taskRepository = taskRepository;
     _taskService = taskService;
+    _settingsProvider = settingsProvider;
     // Defer initialization to avoid notifying during build
     Future.microtask(() => initialize());
   }
@@ -48,14 +55,31 @@ class TaskProvider extends ChangeNotifier {
   bool get hasUnlistedTasks =>
       _allTasks.any((task) => task.listIds.isEmpty && !task.isCompleted);
 
+  StreamSubscription<List<Task>>? _tasksSubscription;
+
+  @override
+  void dispose() {
+    _tasksSubscription?.cancel();
+    super.dispose();
+  }
+
   // Initialization
   Future<void> initialize() async {
     _isLoading = true;
     notifyListeners();
 
     try {
+      // Initial load
       _allTasks = await _taskRepository.loadTasks();
       _applyCurrentFilter();
+
+      // Listen for updates
+      _tasksSubscription?.cancel();
+      _tasksSubscription = _taskRepository.watchTasks().listen((tasks) {
+        _allTasks = tasks;
+        _applyCurrentFilter();
+        notifyListeners();
+      });
     } catch (e) {
       _allTasks = [];
       _filteredTasks = [];
@@ -67,43 +91,33 @@ class TaskProvider extends ChangeNotifier {
 
   // Task Management
   Future<void> addTask(Task task) async {
-    _allTasks.add(task);
-    await _taskRepository.saveTasks(_allTasks);
-    _applyCurrentFilter();
-    notifyListeners();
+    await _taskRepository.addTask(task);
+    // The repository will handle the addition and notify via watchTasks()
+    // so we don't need to manually update _allTasks here
   }
 
   Future<void> updateTask(Task updatedTask) async {
-    final index = _allTasks.indexWhere((t) => t.id == updatedTask.id);
-    if (index != -1) {
-      _allTasks[index] = updatedTask;
-      await _taskRepository.saveTasks(_allTasks);
-      _applyCurrentFilter();
-      notifyListeners();
-    }
+    await _taskRepository.updateTask(updatedTask);
+    // The repository will handle the update and notify via watchTasks()
+    // so we don't need to manually update _allTasks here
   }
 
   Future<void> deleteTask(String taskId) async {
-    _allTasks.removeWhere((t) => t.id == taskId);
-    await _taskRepository.saveTasks(_allTasks);
-    _applyCurrentFilter();
-    notifyListeners();
+    await _taskRepository.deleteTask(taskId);
+    // The repository will handle the deletion and notify via watchTasks()
+    // so we don't need to manually update _allTasks here
   }
 
   Future<void> toggleTaskCompletion(String taskId) async {
-    final index = _allTasks.indexWhere((t) => t.id == taskId);
-    if (index != -1) {
-      final task = _allTasks[index];
-      final shouldComplete = !task.isCompleted;
-      _allTasks[index] = task.copyWith(
-        isCompleted: shouldComplete,
-        completedAt: shouldComplete ? DateTime.now() : null,
-        resetCompletedAt: !shouldComplete,
-      );
-      await _taskRepository.saveTasks(_allTasks);
-      _applyCurrentFilter();
-      notifyListeners();
-    }
+    final task = _allTasks.firstWhere((t) => t.id == taskId);
+    final shouldComplete = !task.isCompleted;
+    final updatedTask = task.copyWith(
+      isCompleted: shouldComplete,
+      completedAt: shouldComplete ? DateTime.now() : null,
+      resetCompletedAt: !shouldComplete,
+    );
+    await _taskRepository.updateTask(updatedTask);
+    // The repository will handle the update and notify via watchTasks()
   }
 
   // Position/Reordering
@@ -336,6 +350,15 @@ class TaskProvider extends ChangeNotifier {
     if (task.listIds.isEmpty) {
       return false;
     }
-    return task.listIds.every((listId) => _hiddenListIds.contains(listId));
+
+    final hiddenBehavior = _settingsProvider.settings.hiddenTaskBehavior;
+
+    if (hiddenBehavior == HiddenTaskBehavior.hideIfAllHidden) {
+      // Hide only if ALL associated lists are hidden
+      return task.listIds.every((listId) => _hiddenListIds.contains(listId));
+    } else {
+      // Hide if ANY associated list is hidden (default)
+      return task.listIds.any((listId) => _hiddenListIds.contains(listId));
+    }
   }
 }

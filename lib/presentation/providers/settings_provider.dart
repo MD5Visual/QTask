@@ -3,6 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
+enum HiddenTaskBehavior {
+  hideIfAnyHidden,
+  hideIfAllHidden,
+}
+
 class SettingsModel {
   final int primaryColor;
   final double baseFontSize;
@@ -13,6 +18,9 @@ class SettingsModel {
   final int fuzzySearchTolerance;
   final String? customDataPath;
   final String? macosBookmark;
+  final bool isSyncEnabled;
+  final bool isDeveloperMode;
+  final HiddenTaskBehavior hiddenTaskBehavior;
 
   const SettingsModel({
     this.primaryColor = 0xFF3F51B5,
@@ -24,6 +32,9 @@ class SettingsModel {
     this.fuzzySearchTolerance = 2,
     this.customDataPath,
     this.macosBookmark,
+    this.isSyncEnabled = false,
+    this.isDeveloperMode = false,
+    this.hiddenTaskBehavior = HiddenTaskBehavior.hideIfAnyHidden,
   });
 
   SettingsModel copyWith({
@@ -39,6 +50,9 @@ class SettingsModel {
     bool forceCustomDataPathNull = false,
     String? macosBookmark,
     bool forceMacosBookmarkNull = false,
+    bool? isSyncEnabled,
+    bool? isDeveloperMode,
+    HiddenTaskBehavior? hiddenTaskBehavior,
   }) {
     return SettingsModel(
       primaryColor: primaryColor ?? this.primaryColor,
@@ -53,6 +67,9 @@ class SettingsModel {
           : (customDataPath ?? this.customDataPath),
       macosBookmark:
           forceMacosBookmarkNull ? null : (macosBookmark ?? this.macosBookmark),
+      isSyncEnabled: isSyncEnabled ?? this.isSyncEnabled,
+      isDeveloperMode: isDeveloperMode ?? this.isDeveloperMode,
+      hiddenTaskBehavior: hiddenTaskBehavior ?? this.hiddenTaskBehavior,
     );
   }
 
@@ -67,6 +84,9 @@ class SettingsModel {
       'fuzzySearchTolerance': fuzzySearchTolerance,
       'customDataPath': customDataPath,
       'macosBookmark': macosBookmark,
+      'isSyncEnabled': isSyncEnabled,
+      'isDeveloperMode': isDeveloperMode,
+      'hiddenTaskBehavior': hiddenTaskBehavior.index,
     };
   }
 
@@ -81,6 +101,11 @@ class SettingsModel {
       fuzzySearchTolerance: json['fuzzySearchTolerance'] ?? 2,
       customDataPath: json['customDataPath'],
       macosBookmark: json['macosBookmark'],
+      isSyncEnabled: json['isSyncEnabled'] ?? false,
+      isDeveloperMode: json['isDeveloperMode'] ?? false,
+      hiddenTaskBehavior: json['hiddenTaskBehavior'] != null
+          ? HiddenTaskBehavior.values[json['hiddenTaskBehavior']]
+          : HiddenTaskBehavior.hideIfAnyHidden,
     );
   }
 }
@@ -102,7 +127,7 @@ class SettingsProvider extends ChangeNotifier {
     try {
       final directory = await getApplicationDocumentsDirectory();
       final file = File('${directory.path}/settings.json');
-      if (await file.exists()) {
+      if (file.existsSync()) {
         final content = await file.readAsString();
         final json = jsonDecode(content);
         _settings = SettingsModel.fromJson(json);

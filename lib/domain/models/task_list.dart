@@ -33,4 +33,28 @@ class TaskList {
       isHidden: isHidden ?? this.isHidden,
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'color': color,
+      'createdAt': createdAt.millisecondsSinceEpoch,
+      'position': position,
+      'isHidden': isHidden,
+    };
+  }
+
+  factory TaskList.fromMap(Map<String, dynamic> map) {
+    return TaskList(
+      id: map['id'],
+      name: map['name'] ?? 'Untitled List',
+      color: map['color'] ?? '#3F51B5',
+      createdAt: map['createdAt'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['createdAt'])
+          : null,
+      position: map['position'] ?? 0,
+      isHidden: map['isHidden'] ?? false,
+    );
+  }
 }

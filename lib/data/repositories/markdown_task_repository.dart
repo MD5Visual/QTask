@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:q_task/data/services/storage_service.dart';
+import 'package:q_task/data/utils/task_serializer.dart';
 import 'package:q_task/domain/models/task.dart';
 import 'package:q_task/domain/repositories/i_repository.dart';
 
@@ -7,64 +9,30 @@ class MarkdownTaskRepository implements ITaskRepository {
   late Directory _tasksDir;
   static const String _indexFileName = 'tasks_index.md';
   final StorageService _storageService;
+  final _taskStreamController = StreamController<List<Task>>.broadcast();
 
   MarkdownTaskRepository(this._storageService);
+
+  @override
+  Stream<List<Task>> watchTasks() => _taskStreamController.stream;
+
+  Future<void> _emitTasks() async {
+    final tasks = await loadTasks();
+    _taskStreamController.add(tasks);
+  }
 
   Future<void> _ensureDirectoryExists() async {
     final rootDir = await _storageService.getRootDirectory();
     _tasksDir = Directory('${rootDir.path}/tasks');
-    if (!await _tasksDir.exists()) {
+    if (!_tasksDir.existsSync()) {
       await _tasksDir.create(recursive: true);
     }
-  }
-
-  String _taskToMarkdown(Task task) {
-    final buffer = StringBuffer();
-    buffer.writeln('# ${task.title}');
-    buffer.writeln();
-    buffer.writeln('**ID:** ${task.id}');
-    buffer.writeln('**Created:** ${task.createdAt.toIso8601String()}');
-    if (task.dueDate != null) {
-      buffer.writeln('**Due Date:** ${task.dueDate!.toIso8601String()}');
-    }
-    buffer.writeln('**Completed:** ${task.isCompleted}');
-    if (task.completedAt != null) {
-      buffer
-          .writeln('**Completed At:** ${task.completedAt!.toIso8601String()}');
-    }
-    buffer.writeln('**Position:** ${task.position}');
-    buffer.writeln();
-
-    if (task.tags.isNotEmpty) {
-      buffer.writeln('**Tags:** ${task.tags.join(', ')}');
-      buffer.writeln();
-    }
-
-    if (task.listIds.isNotEmpty) {
-      buffer.writeln('**Lists:** ${task.listIds.join(', ')}');
-      buffer.writeln();
-    }
-
-    if (task.attachedFiles.isNotEmpty) {
-      buffer.writeln('**Attached Files:**');
-      for (final file in task.attachedFiles) {
-        buffer.writeln('- $file');
-      }
-      buffer.writeln();
-    }
-
-    buffer.writeln('## Description');
-    buffer.writeln();
-    buffer.writeln(
-        task.description.isEmpty ? '(No description)' : task.description);
-
-    return buffer.toString();
   }
 
   Future<void> _saveTaskMarkdown(Task task) async {
     await _ensureDirectoryExists();
     final file = File('${_tasksDir.path}/${task.id}.md');
-    await file.writeAsString(_taskToMarkdown(task));
+    await file.writeAsString(TaskSerializer.toMarkdown(task));
   }
 
   Future<void> _saveIndex(List<Task> tasks) async {
@@ -89,6 +57,7 @@ class MarkdownTaskRepository implements ITaskRepository {
       await _saveTaskMarkdown(task);
     }
     await _saveIndex(tasks);
+    _taskStreamController.add(tasks);
   }
 
   @override
@@ -96,6 +65,7 @@ class MarkdownTaskRepository implements ITaskRepository {
     await _saveTaskMarkdown(task);
     final allTasks = await loadTasks();
     await _saveIndex([...allTasks, task]);
+    await _emitTasks();
   }
 
   @override
@@ -106,6 +76,7 @@ class MarkdownTaskRepository implements ITaskRepository {
     if (index != -1) {
       allTasks[index] = task;
       await _saveIndex(allTasks);
+      _taskStreamController.add(allTasks);
     }
   }
 
@@ -113,12 +84,13 @@ class MarkdownTaskRepository implements ITaskRepository {
   Future<void> deleteTask(String taskId) async {
     await _ensureDirectoryExists();
     final file = File('${_tasksDir.path}/$taskId.md');
-    if (await file.exists()) {
+    if (file.existsSync()) {
       await file.delete();
     }
     final allTasks = await loadTasks();
     allTasks.removeWhere((t) => t.id == taskId);
     await _saveIndex(allTasks);
+    _taskStreamController.add(allTasks);
   }
 
   @override
@@ -127,7 +99,7 @@ class MarkdownTaskRepository implements ITaskRepository {
     final tasks = <Task>[];
 
     final indexFile = File('${_tasksDir.path}/$_indexFileName');
-    if (!await indexFile.exists()) {
+    if (!indexFile.existsSync()) {
       return [];
     }
 
@@ -142,9 +114,9 @@ class MarkdownTaskRepository implements ITaskRepository {
         final taskId = parts[0].trim().replaceFirst('- ', '');
         final taskFile = File('${_tasksDir.path}/$taskId.md');
 
-        if (await taskFile.exists()) {
+        if (taskFile.existsSync()) {
           final taskContent = await taskFile.readAsString();
-          final task = _parseTaskMarkdown(taskContent, taskId);
+          final task = TaskSerializer.fromMarkdown(taskContent, taskId);
           if (task != null) {
             tasks.add(task);
           }
@@ -153,86 +125,5 @@ class MarkdownTaskRepository implements ITaskRepository {
     }
 
     return tasks;
-  }
-
-  Task? _parseTaskMarkdown(String content, String taskId) {
-    try {
-      final lines = content.split('\n');
-      String title = '';
-      DateTime? createdAt;
-      DateTime? dueDate;
-      List<String> tags = [];
-      List<String> listIds = [];
-      List<String> attachedFiles = [];
-      int position = 0;
-      bool isCompleted = false;
-
-      bool inDescription = false;
-      bool inAttachedFiles = false;
-      final descriptionLines = <String>[];
-      DateTime? completedAt;
-
-      for (final line in lines) {
-        if (line.startsWith('# ')) {
-          title = line.substring(2).trim();
-        } else if (line.startsWith('**ID:**')) {
-          // Already have ID
-        } else if (line.startsWith('**Created:**')) {
-          final dateStr = line.replaceFirst('**Created:**', '').trim();
-          createdAt = DateTime.tryParse(dateStr);
-        } else if (line.startsWith('**Due Date:**')) {
-          final dateStr = line.replaceFirst('**Due Date:**', '').trim();
-          dueDate = DateTime.tryParse(dateStr);
-        } else if (line.startsWith('**Completed:**')) {
-          isCompleted = line.contains('true');
-        } else if (line.startsWith('**Completed At:**')) {
-          final dateStr = line.replaceFirst('**Completed At:**', '').trim();
-          completedAt = DateTime.tryParse(dateStr);
-        } else if (line.startsWith('**Position:**')) {
-          final posStr = line.replaceFirst('**Position:**', '').trim();
-          position = int.tryParse(posStr) ?? 0;
-        } else if (line.startsWith('**Tags:**')) {
-          final tagsStr = line.replaceFirst('**Tags:**', '').trim();
-          tags = tagsStr.isEmpty
-              ? []
-              : tagsStr.split(', ').map((t) => t.trim()).toList();
-        } else if (line.startsWith('**Lists:**')) {
-          final listsStr = line.replaceFirst('**Lists:**', '').trim();
-          listIds = listsStr.isEmpty
-              ? []
-              : listsStr.split(', ').map((l) => l.trim()).toList();
-        } else if (line.startsWith('**Attached Files:**')) {
-          inAttachedFiles = true;
-          inDescription = false;
-        } else if (line.startsWith('## Description')) {
-          inDescription = true;
-          inAttachedFiles = false;
-        } else if (inAttachedFiles && line.startsWith('- ')) {
-          attachedFiles.add(line.substring(2).trim());
-        } else if (inDescription &&
-            line.isNotEmpty &&
-            !line.startsWith('## ')) {
-          if (line != '(No description)') {
-            descriptionLines.add(line);
-          }
-        }
-      }
-
-      return Task(
-        id: taskId,
-        title: title.isEmpty ? 'Untitled' : title,
-        description: descriptionLines.join('\n').trim(),
-        createdAt: createdAt ?? DateTime.now(),
-        dueDate: dueDate,
-        tags: tags,
-        listIds: listIds,
-        attachedFiles: attachedFiles,
-        position: position,
-        isCompleted: isCompleted,
-        completedAt: completedAt,
-      );
-    } catch (e) {
-      return null;
-    }
   }
 }

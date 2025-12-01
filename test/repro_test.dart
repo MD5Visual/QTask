@@ -1,9 +1,10 @@
+// ignore_for_file: avoid_print
 import 'package:markdown/markdown.dart' as md;
 import 'package:markdown_quill/markdown_quill.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
 void main() {
-  final markdown = '';
+  const markdown = '';
   final delta =
       MarkdownToDelta(markdownDocument: md.Document()).convert(markdown);
   print('Delta for empty string: $delta');

@@ -2,7 +2,7 @@ name: q_task
 description: A clean task management app that saves tasks in markdown.
 publish_to: none
 
-version: 0.9.5
+version: 0.11.21
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -33,6 +33,11 @@ dependencies:
   url_launcher: ^6.3.2
   macos_secure_bookmarks: ^0.2.1
   share_plus: ^12.0.1
+  crypto: ^3.0.3
+  flutter_image_compress: ^2.3.0
+  shared_preferences: ^2.2.2
+  image_picker: ^1.0.7
+  flutter_svg: ^2.0.0
 
 dev_dependencies:
   flutter_test:
@@ -42,9 +47,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/logo.svg
     - assets/dictionaries/en_words.txt
     - assets/dictionaries/es_words.txt
     - assets/dictionaries/hunspell/en_US.dic
     - assets/dictionaries/hunspell/en_US.aff
     - assets/dictionaries/hunspell/es_ES.dic
     - assets/dictionaries/hunspell/es_ES.aff
+    - assets/oauth_config.json

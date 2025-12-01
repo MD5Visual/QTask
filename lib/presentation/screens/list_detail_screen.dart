@@ -83,9 +83,12 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
           padding: const EdgeInsets.all(16.0),
           child: SizedBox(
             width: double.infinity,
-            child: ElevatedButton(
+            child: FilledButton(
               onPressed: _saveList,
               child: Text(widget.list == null ? 'Create List' : 'Update List'),
+              style: FilledButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
             ),
           ),
         ),
@@ -109,111 +112,118 @@ class _ListDetailScreenState extends State<ListDetailScreen> {
 
           // Color Selection
           Text(
-            'Preset Colors',
+            'List Color',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 16),
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: _colorOptions.map((color) {
-              final isSelected = color.toARGB32() == _selectedColor.toARGB32();
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedColor = color;
-                  });
-                },
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                    border: isSelected
-                        ? Border.all(color: Colors.white, width: 4)
-                        : null,
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: color.withValues(alpha: 0.5),
-                              blurRadius: 8,
-                              spreadRadius: 2,
-                            )
-                          ]
-                        : null,
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 32),
-
-          Text(
-            'Custom Color',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          Container(
-            height: 48,
-            width: double.infinity,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _selectedColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: OutlineStyles.color,
-              ),
-            ),
-            child: Text(
-              'Preview',
-              style: TextStyle(
-                color: _selectedColor.computeLuminance() > 0.5
-                    ? Colors.black
-                    : Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const pickerHeight = 490.0;
-              final pickerWidth = constraints.maxWidth;
-              return SizedBox(
-                height: pickerHeight,
-                width: pickerWidth,
-                child: ColorPicker(
-                  pickerColor: _selectedColor,
-                  onColorChanged: (color) {
+            children: [
+              ..._colorOptions.map((color) {
+                final isSelected =
+                    color.toARGB32() == _selectedColor.toARGB32();
+                return GestureDetector(
+                  onTap: () {
                     setState(() {
                       _selectedColor = color;
                     });
                   },
-                  enableAlpha: false,
-                  labelTypes: ColorLabelType.values,
-                  paletteType: PaletteType.hsv,
-                  colorPickerWidth: pickerWidth,
-                  pickerAreaHeightPercent: 0.6,
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: isSelected
+                          ? Border.all(color: Colors.white, width: 4)
+                          : null,
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: color.withValues(alpha: 0.5),
+                                blurRadius: 8,
+                                spreadRadius: 2,
+                              )
+                            ]
+                          : null,
+                    ),
+                  ),
+                );
+              }),
+              // Custom Color Button
+              GestureDetector(
+                onTap: _showCustomColorPicker,
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: _isCustomColor(_selectedColor)
+                          ? _selectedColor
+                          : Theme.of(context).dividerColor,
+                      width: _isCustomColor(_selectedColor) ? 4 : 2,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.add,
+                    color: _isCustomColor(_selectedColor)
+                        ? _selectedColor
+                        : Theme.of(context).iconTheme.color,
+                  ),
                 ),
-              );
-            },
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-
-          SwitchListTile(
-            value: _isHidden,
-            onChanged: (value) {
-              setState(() {
-                _isHidden = value;
-              });
-            },
-            title: const Text('Hide this list'),
-            subtitle: const Text(
-                'Hidden lists stay out of the drawer and task picker'),
-          ),
-          const SizedBox(height: 16),
         ],
       ),
+    );
+  }
+
+  bool _isCustomColor(Color color) {
+    return !_colorOptions.any((c) => c.toARGB32() == color.toARGB32());
+  }
+
+  void _showCustomColorPicker() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        Color pickerColor = _selectedColor;
+        return AlertDialog(
+          title: const Text('Pick a color'),
+          content: SingleChildScrollView(
+            child: ColorPicker(
+              pickerColor: pickerColor,
+              onColorChanged: (color) {
+                pickerColor = color;
+              },
+              enableAlpha: false,
+              labelTypes: ColorLabelType.values,
+              paletteType: PaletteType.hsv,
+              pickerAreaHeightPercent: 0.8,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            FilledButton(
+              child: const Text('Select'),
+              onPressed: () {
+                setState(() {
+                  _selectedColor = pickerColor;
+                });
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }

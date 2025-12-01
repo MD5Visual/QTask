@@ -15,6 +15,7 @@ import 'package:q_task/presentation/providers/task_list_provider.dart';
 import 'package:q_task/presentation/screens/home_screen.dart';
 import 'package:q_task/presentation/theme/app_theme.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:q_task/presentation/providers/auth_provider.dart';
 
 import 'dart:io';
 
@@ -24,6 +25,8 @@ void main() async {
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await windowManager.ensureInitialized();
   }
+
+  // Firebase initialization removed for local-only version
 
   final packageInfo = await PackageInfo.fromPlatform();
   final versionString = 'QTask v${packageInfo.version}';
@@ -50,6 +53,9 @@ class TaskApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => SettingsProvider(),
         ),
+        ChangeNotifierProvider(
+          create: (_) => AuthProvider(),
+        ),
         ProxyProvider<SettingsProvider, StorageService>(
           update: (_, settingsProvider, __) => StorageService(settingsProvider),
         ),
@@ -67,32 +73,43 @@ class TaskApp extends StatelessWidget {
         ProxyProvider<StorageService, BackupService>(
           update: (_, storageService, __) => BackupService(storageService),
         ),
-        ChangeNotifierProxyProvider2<MarkdownTaskRepository, AttachmentService,
-            TaskProvider>(
-          create: (_) => TaskProvider(
-            taskRepository:
-                MarkdownTaskRepository(StorageService(SettingsProvider())),
-            taskService: TaskService(),
-          ),
-          update: (_, taskRepo, attachmentService, previous) {
+        ChangeNotifierProxyProvider3<MarkdownTaskRepository, AttachmentService,
+            SettingsProvider, TaskProvider>(
+          create: (context) {
+            final localRepo =
+                Provider.of<MarkdownTaskRepository>(context, listen: false);
+            final settingsProvider =
+                Provider.of<SettingsProvider>(context, listen: false);
+            return TaskProvider(
+              taskRepository: localRepo,
+              taskService: TaskService(),
+              settingsProvider: settingsProvider,
+            );
+          },
+          update: (_, taskRepo, attachmentService, settingsProvider, previous) {
             final provider = previous ??
                 TaskProvider(
                   taskRepository: taskRepo,
                   taskService: TaskService(),
+                  settingsProvider: settingsProvider,
                 );
             provider.updateDependencies(
               taskRepository: taskRepo,
               taskService: TaskService(),
+              settingsProvider: settingsProvider,
             );
             return provider;
           },
         ),
         ChangeNotifierProxyProvider<MarkdownTaskListRepository,
             TaskListProvider>(
-          create: (_) => TaskListProvider(
-            taskListRepository:
-                MarkdownTaskListRepository(StorageService(SettingsProvider())),
-          ),
+          create: (context) {
+            final localRepo =
+                Provider.of<MarkdownTaskListRepository>(context, listen: false);
+            return TaskListProvider(
+              taskListRepository: localRepo,
+            );
+          },
           update: (_, taskListRepo, previous) {
             final provider = previous ??
                 TaskListProvider(

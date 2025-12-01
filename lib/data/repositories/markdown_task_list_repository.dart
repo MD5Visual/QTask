@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:q_task/data/services/storage_service.dart';
 import 'package:q_task/domain/models/task_list.dart';
@@ -13,7 +14,7 @@ class MarkdownTaskListRepository implements ITaskListRepository {
   Future<void> _ensureDirectoryExists() async {
     final rootDir = await _storageService.getRootDirectory();
     _listsDir = Directory('${rootDir.path}/lists');
-    if (!await _listsDir.exists()) {
+    if (!_listsDir.existsSync()) {
       await _listsDir.create(recursive: true);
     }
   }
@@ -52,12 +53,60 @@ class MarkdownTaskListRepository implements ITaskListRepository {
     await indexFile.writeAsString(buffer.toString());
   }
 
+  final _listStreamController = StreamController<List<TaskList>>.broadcast();
+
+  @override
+  Stream<List<TaskList>> watchTaskLists() => _listStreamController.stream;
+
+  Future<void> _emitLists() async {
+    final lists = await loadTaskLists();
+    _listStreamController.add(lists);
+  }
+
+  @override
+  Future<void> addTaskList(TaskList list) async {
+    await _saveListMarkdown(list);
+    final lists = await loadTaskLists();
+    if (!lists.any((l) => l.id == list.id)) {
+      lists.add(list);
+    }
+    await _saveIndex(lists);
+    await _emitLists();
+  }
+
+  @override
+  Future<void> updateTaskList(TaskList list) async {
+    await _saveListMarkdown(list);
+    final lists = await loadTaskLists();
+    final index = lists.indexWhere((l) => l.id == list.id);
+    if (index != -1) {
+      lists[index] = list;
+      await _saveIndex(lists);
+    }
+    await _emitLists();
+  }
+
+  @override
+  Future<void> deleteTaskList(String listId) async {
+    await _ensureDirectoryExists();
+    final file = File('${_listsDir.path}/$listId.md');
+    if (file.existsSync()) {
+      await file.delete();
+    }
+
+    final lists = await loadTaskLists();
+    lists.removeWhere((l) => l.id == listId);
+    await _saveIndex(lists);
+    await _emitLists();
+  }
+
   @override
   Future<void> saveTaskLists(List<TaskList> lists) async {
     for (final list in lists) {
       await _saveListMarkdown(list);
     }
     await _saveIndex(lists);
+    _listStreamController.add(lists);
   }
 
   @override
@@ -66,7 +115,7 @@ class MarkdownTaskListRepository implements ITaskListRepository {
     final lists = <TaskList>[];
 
     final indexFile = File('${_listsDir.path}/$_indexFileName');
-    if (!await indexFile.exists()) {
+    if (!indexFile.existsSync()) {
       return [];
     }
 
@@ -81,7 +130,7 @@ class MarkdownTaskListRepository implements ITaskListRepository {
         final listId = parts[0].trim().replaceFirst('- ', '');
         final listFile = File('${_listsDir.path}/$listId.md');
 
-        if (await listFile.exists()) {
+        if (listFile.existsSync()) {
           final listContent = await listFile.readAsString();
           final taskList = _parseListMarkdown(listContent, listId);
           if (taskList != null) {
@@ -131,5 +180,9 @@ class MarkdownTaskListRepository implements ITaskListRepository {
     } catch (e) {
       return null;
     }
+  }
+
+  void dispose() {
+    _listStreamController.close();
   }
 }

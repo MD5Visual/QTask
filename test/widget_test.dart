@@ -8,9 +8,11 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:q_task/main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   testWidgets('QTask loads correctly', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
     // Build our app and trigger a frame.
     await tester.pumpWidget(const TaskApp(versionString: 'QTask Test'));
     await tester.pumpAndSettle();
